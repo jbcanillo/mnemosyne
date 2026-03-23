@@ -1,132 +1,174 @@
-# SOFIA RAG Knowledge Base — AV ABAS ERP
+# Mnemosyne — RAG Knowledge Base
 
-Self-hosted, containerized RAG (Retrieval-Augmented Generation) system with full authentication, powering the AV ABAS Viber chatbot with an AI knowledge base grounded in your own documents.
+A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with full authentication, live LLM switching, and a Viber chatbot integration. Answers questions grounded exclusively in your own uploaded documents.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Docker Network (rag-net)                      │
-│                                                                  │
-│  ┌──────────────┐      ┌──────────────┐     ┌─────────────┐    │
-│  │  React UI    │─────▶│  RAG Server  │────▶│   Ollama    │    │
-│  │  (port 3000) │      │  (port 3001) │     │ phi3:mini + │    │
-│  │  Login gate  │      │  API Key +   │     │ nomic-embed │    │
-│  └──────────────┘      │  Session auth│     └─────────────┘    │
-│                         └──────┬───────┘                        │
-│                                │                                 │
-│                        ┌───────┴──────┐                         │
-│                        │              │                          │
-│                  ┌─────▼───┐   ┌──────▼──┐                     │
-│                  │ChromaDB │   │  Redis  │                      │
-│                  │(vectors)│   │(cache+q)│                      │
-│                  └─────────┘   └─────────┘                      │
-└─────────────────────────────────────────────────────────────────┘
-          ▲
-          │  HTTP + X-API-Key header
-          │
- ┌────────┴──────────┐
- │  CI PHP App       │
- │  Chatbot.php      │ ◀─── Viber Webhook
- └───────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                   Docker Network (mnemosyne-rag-network)          │
+│                                                                   │
+│  ┌──────────────┐     ┌───────────────┐     ┌─────────────────┐ │
+│  │  React UI    │────▶│  RAG Server   │────▶│ OpenRouter API  │ │
+│  │  :3000       │     │  :3001        │     │ (LLM cloud)     │ │
+│  │  Login gate  │     │  API Key +    │     └─────────────────┘ │
+│  └──────────────┘     │  Session auth │     ┌─────────────────┐ │
+│                        └──────┬────────┘────▶│ Ollama :11434   │ │
+│                               │              │ (embeddings)    │ │
+│                       ┌───────┴──────┐       └─────────────────┘ │
+│                       │              │                            │
+│                ┌──────▼──┐    ┌──────▼──┐                       │
+│                │ChromaDB │    │  Redis  │                        │
+│                │(vectors)│    │(cache+q)│                        │
+│                └─────────┘    └─────────┘                        │
+└──────────────────────────────────────────────────────────────────┘
+         ▲
+         │  HTTP  ·  X-API-Key header
+         │
+┌────────┴──────────┐
+│  Chatbot.php      │ ◀─── Viber Webhook
+│  (CI PHP App)     │
+└───────────────────┘
 ```
+
+### Component Stack
+
+| Component | Technology | Role |
+|-----------|-----------|------|
+| **LLM** | OpenRouter (cloud) | Response generation — free tier, no GPU needed |
+| **Embeddings** | Ollama + nomic-embed-text | Local semantic indexing — ~270 MB, no API cost |
+| **Vector DB** | ChromaDB | Chunk storage and cosine similarity search |
+| **Cache / Queue** | Redis + Bull | Query caching, async job queue |
+| **API Server** | Node.js + Express | REST API, auth, rate limiting |
+| **Admin UI** | React | Document management, query testing, live model switching |
+| **Chatbot** | PHP / CodeIgniter | Viber-facing bot |
 
 ---
 
-## Authentication Model
+## Authentication
 
 | Client | Method | Header |
 |--------|--------|--------|
-| Viber Bot (Chatbot.php) | API Key | `X-API-Key: <RAG_API_KEY>` |
+| Viber bot (`Chatbot.php`) | API Key | `X-API-Key: <RAG_API_KEY>` |
 | React Admin UI | Session Token | `X-Session-Token: <token>` (auto-injected after login) |
 
-### API Key — for server-to-server
+### API Key — server-to-server
 - Static secret, minimum 32 characters
-- Set in `rag-server/.env` as `RAG_API_KEY`
-- Set in CI PHP config as `RAG_API_KEY` constant or environment variable
-- Used by `/api/query` and `/api/query/status/:jobId`
+- Set via `RAG_API_KEY` in `rag-server/.env`
+- Also set in CI PHP as a constant or environment variable
+- Grants access to `/api/query` and `/api/query/status/:jobId`
 
-### Session Token — for React UI
-- Login via `POST /api/auth/login` with `ADMIN_USERNAME` / `ADMIN_PASSWORD`
-- Returns a 64-character hex token valid for `SESSION_TTL_HOURS` (default 8h)
-- Stored in `sessionStorage` (cleared when browser tab closes)
-- Auto-refreshed check on every page load
+### Session Token — React UI
+- Login via `POST /api/auth/login` → receive a 64-char hex token
+- Valid for `SESSION_TTL_HOURS` (default 8 h), stored in `sessionStorage`
+- Token verified automatically on every page load
 - 5 failed login attempts → IP locked out for 15 minutes
 
-### Public endpoints (no auth)
-- `GET /health` — for Docker health checks
-- `POST /api/auth/login` — how you get a token
+### Public endpoints (no auth required)
+- `GET /health`
+- `POST /api/auth/login`
 
 ---
 
 ## Quick Start
 
-### 1. Prerequisites
+### Prerequisites
 - Docker Engine 24+ and Docker Compose v2+
-- 8 GB RAM minimum (16 GB recommended)
-- 20 GB disk (Ollama models)
+- 6 GB RAM minimum
+- A free [OpenRouter](https://openrouter.ai) API key
 
-### 2. Configure secrets
+### 1 — Configure secrets
 
 ```bash
 cp rag-server/.env.example rag-server/.env
 ```
 
-Edit `rag-server/.env` and set:
+Open `rag-server/.env` and fill in:
 
 ```env
-# Generate with: openssl rand -hex 32
-RAG_API_KEY=your_64_char_hex_secret_here
+# Generate: openssl rand -hex 32
+RAG_API_KEY=your_64_char_hex_key
 
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your_strong_password_here
+ADMIN_PASSWORD=your_strong_password
+
+# Free at https://openrouter.ai → Keys → Create Key
+OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxx
 ```
 
-### 3. Configure Chatbot.php
-
-Add to `application/config/constants.php`:
-
-```php
-define('RAG_SERVER_URL', 'http://localhost:3001');  // host access
-// OR if PHP runs inside the same Docker network:
-// define('RAG_SERVER_URL', 'http://rag-server:3001');
-
-define('RAG_API_KEY', 'your_64_char_hex_secret_here');  // same key as .env
-```
-
-### 4. Start the stack
+### 2 — Start the stack
 
 ```bash
 docker compose up -d
 
-# Watch startup (Ollama will pull models on first boot ~5-15 min)
-docker compose logs -f rag-server
+# First boot: Ollama pulls nomic-embed-text (~270 MB)
+docker logs mnemosyne-ollama-init -f
 ```
 
-### 5. Access the Admin UI
+### 3 — Open the Admin UI
 
-Open **http://localhost:3000** → login with your `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
+**http://localhost:3000** → login with your `ADMIN_USERNAME` / `ADMIN_PASSWORD`
 
-### 6. Upload ERP documents
+### 4 — Upload documents
 
-Use the **Knowledge Base** tab to upload PDFs, Excel files, Markdown docs, etc.
+Go to the **Knowledge Base** tab and upload PDFs, Excel files, Markdown, DOCX, CSV, or plain text. Each document is parsed, chunked, embedded, and indexed automatically. A live progress bar shows the exact stage.
 
-### 7. Verify the Viber bot connection
+### 5 — Configure the Viber bot
 
+Add to `application/config/constants.php`:
+
+```php
+define('RAG_SERVER_URL', 'http://localhost:3001');
+define('RAG_API_KEY',    'your_64_char_hex_key');  // same key as .env
 ```
-GET http://localhost/chatbot/rag_status
+
+Verify the connection at:
+```
+GET http://your-ci-host/chatbot/rag_status
 ```
 
-Expected response:
+Expected:
 ```json
-{
-  "rag_server": "online",
-  "api_key_valid": true,
-  "api_key_set": true
-}
+{ "rag_server": "online", "api_key_valid": true, "api_key_set": true }
 ```
+
+---
+
+## Live LLM Switching
+
+You can switch the active language model **at runtime without restarting** any container.
+
+### Via the Admin UI
+Go to **System Status** → **Language Model** section → click any model card. The active model switches instantly with a loading spinner. The change persists until the container restarts.
+
+### Via API
+
+```bash
+# List available free models
+curl http://localhost:3001/api/models \
+  -H "X-Session-Token: your_token"
+
+# Switch to a different model
+curl -X POST http://localhost:3001/api/models/switch \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Token: your_token" \
+  -d '{"modelId": "meta-llama/llama-3.1-8b-instruct:free"}'
+```
+
+### Available free models (OpenRouter)
+
+| Model ID | Notes |
+|----------|-------|
+| `stepfun/step-3.5-flash:free` | **Default** — fast, free |
+| `microsoft/phi-3-mini-128k-instruct:free` | 128k context window |
+| `meta-llama/llama-3.1-8b-instruct:free` | Most capable free model |
+| `mistralai/mistral-7b-instruct:free` | Fast and balanced |
+| `google/gemma-2-9b-it:free` | Google, strong reasoning |
+| `qwen/qwen-2-7b-instruct:free` | Multilingual |
+
+To make a switch permanent, update `OPENROUTER_MODEL` in `rag-server/.env` and restart the `mnemosyne-rag-server` container.
 
 ---
 
@@ -137,49 +179,89 @@ All endpoints require auth except `/health` and `POST /api/auth/login`.
 ### Auth
 
 ```bash
-# Login — get session token
+# Login
 curl -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"yourpassword"}'
 # → { "token": "abc123...", "expiresAt": "..." }
 
-# Verify token
+# Verify
 curl http://localhost:3001/api/auth/verify \
   -H "X-Session-Token: abc123..."
 ```
 
-### Query (API Key — for Viber bot)
+### Query
 
 ```bash
+# Sync query — API Key (Viber bot)
 curl -X POST http://localhost:3001/api/query \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: your_api_key_here" \
-  -d '{"query": "How do I create a purchase order?"}'
-```
+  -H "X-API-Key: your_api_key" \
+  -d '{"query": "What information is in the knowledge base?"}'
 
-### Query (Session — for React UI or testing)
-
-```bash
+# Async query — enqueue and poll
 curl -X POST http://localhost:3001/api/query \
+  -H "X-Session-Token: your_token" \
   -H "Content-Type: application/json" \
-  -H "X-Session-Token: your_session_token" \
-  -d '{"query": "What vessels are in the system?"}'
+  -d '{"query": "Summarise the uploaded documents", "async": true}'
+# → { "jobId": "42" }
+
+curl http://localhost:3001/api/query/status/42 \
+  -H "X-Session-Token: your_token"
+
+# Debug — see raw similarity scores for a query
+curl "http://localhost:3001/api/query/debug?q=your+question" \
+  -H "X-Session-Token: your_token"
 ```
 
-### Document Management (Session only)
+### Documents
 
 ```bash
 # Upload
 curl -X POST http://localhost:3001/api/documents/upload \
   -H "X-Session-Token: your_token" \
-  -F "file=@/path/to/manual.pdf"
+  -F "file=@/path/to/document.pdf"
 
 # List
 curl http://localhost:3001/api/documents \
   -H "X-Session-Token: your_token"
 
+# Check ingest job progress
+curl http://localhost:3001/api/documents/ingest-status/<jobId> \
+  -H "X-Session-Token: your_token"
+
 # Delete
 curl -X DELETE http://localhost:3001/api/documents/<id> \
+  -H "X-Session-Token: your_token"
+```
+
+### Models
+
+```bash
+# List available models
+curl http://localhost:3001/api/models \
+  -H "X-Session-Token: your_token"
+
+# Switch active model live
+curl -X POST http://localhost:3001/api/models/switch \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Token: your_token" \
+  -d '{"modelId":"meta-llama/llama-3.1-8b-instruct:free"}'
+```
+
+### Admin
+
+```bash
+# Full diagnostics (OpenRouter, Ollama, ChromaDB, Redis)
+curl http://localhost:3001/api/diagnostics \
+  -H "X-Session-Token: your_token"
+
+# Clear query cache
+curl -X DELETE http://localhost:3001/api/cache \
+  -H "X-Session-Token: your_token"
+
+# Reset vector store (wipes all chunks — re-upload required)
+curl -X POST http://localhost:3001/api/vector-store/reset \
   -H "X-Session-Token: your_token"
 ```
 
@@ -189,16 +271,64 @@ curl -X DELETE http://localhost:3001/api/documents/<id> \
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `RAG_API_KEY` | — | **Required.** Min 32 chars. Use `openssl rand -hex 32` |
-| `ADMIN_USERNAME` | `admin` | React UI login username |
+| `RAG_API_KEY` | — | **Required.** Min 32 chars. `openssl rand -hex 32` |
+| `ADMIN_USERNAME` | `admin` | UI login username |
 | `ADMIN_PASSWORD` | — | **Required.** Min 8 chars |
-| `SESSION_TTL_HOURS` | `8` | How long UI sessions last |
-| `LLM_MODEL` | `phi3:mini` | Ollama LLM model |
+| `SESSION_TTL_HOURS` | `8` | UI session lifetime (hours) |
+| `OPENROUTER_API_KEY` | — | **Required.** Free at openrouter.ai |
+| `OPENROUTER_MODEL` | `stepfun/step-3.5-flash:free` | Default LLM (switchable live) |
+| `OLLAMA_HOST` | `http://ollama:11434` | Ollama endpoint (embeddings) |
 | `EMBED_MODEL` | `nomic-embed-text` | Embedding model |
 | `TOP_K` | `5` | Chunks retrieved per query |
-| `MIN_RELEVANCE_SCORE` | `0.4` | Min similarity threshold (0–1) |
+| `MIN_RELEVANCE_SCORE` | `0.15` | Cosine similarity threshold (0–1) |
 | `CHUNK_SIZE` | `500` | Words per document chunk |
-| `CHUNK_OVERLAP` | `50` | Overlap between chunks |
-| `CACHE_TTL` | `3600` | Query cache TTL (seconds) |
-| `QUERY_RATE_LIMIT` | `20` | Max queries/min per IP |
-| `CORS_ORIGIN` | `*` | Restrict to your UI domain in production |
+| `CHUNK_OVERLAP` | `50` | Overlap between adjacent chunks |
+| `CACHE_TTL` | `3600` | Query cache TTL in seconds |
+| `QUERY_RATE_LIMIT` | `20` | Max queries per minute per IP |
+| `CORS_ORIGIN` | `*` | Restrict in production |
+| `APP_URL` | `http://localhost:3000` | Shown in OpenRouter dashboard |
+| `APP_TITLE` | `Mnemosyne RAG` | Shown in OpenRouter dashboard |
+
+---
+
+## Troubleshooting
+
+**Document uploads succeed but queries return "no information"**
+Run the debug endpoint to see actual similarity scores:
+```bash
+curl "http://localhost:3001/api/query/debug?q=your+question" -H "X-Session-Token: your_token"
+```
+If all scores are below `MIN_RELEVANCE_SCORE`, lower the threshold in `.env`. If no chunks are returned at all, reset the vector store collection and re-upload documents — the collection may have been created with the wrong distance metric.
+
+**Document shows "Processing…" then disappears**
+Check server logs:
+```bash
+docker logs mnemosyne-rag-server --tail 80
+```
+Most common cause is Ollama not responding. Verify:
+```bash
+docker logs mnemosyne-ollama --tail 30
+```
+
+**OpenRouter returns 429**
+Free tier has rate limits. Wait 30–60 seconds and retry, or switch to a less busy free model via the System Status tab.
+
+**Container name conflicts on startup**
+If you previously ran the stack with old `avabas-*` container names, remove them first:
+```bash
+docker rm -f avabas-ollama avabas-chromadb avabas-redis avabas-rag-server avabas-rag-ui 2>/dev/null
+docker compose up -d
+```
+
+---
+
+## Docker Container Reference
+
+| Container | Image | Purpose |
+|-----------|-------|---------|
+| `mnemosyne-ollama` | `ollama/ollama:0.3.12` | Embedding model runtime |
+| `mnemosyne-ollama-init` | `curlimages/curl` | Pulls models on first boot, then exits |
+| `mnemosyne-chromadb` | `chromadb/chroma:latest` | Vector database |
+| `mnemosyne-redis` | `redis:7-alpine` | Cache and job queue |
+| `mnemosyne-rag-server` | Built from `rag-server/` | REST API |
+| `mnemosyne-rag-ui` | Built from `rag-ui/` | React Admin UI |
