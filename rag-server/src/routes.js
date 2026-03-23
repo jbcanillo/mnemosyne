@@ -51,22 +51,38 @@ router.get('/info',     requireSession, queryController.info);
 // ── Live model switching (Session only) ───────────────────────────────
 router.get('/models', requireSession, async (req, res) => {
   const llm = require('./services/llmService');
+
+  // Known free models — always returned even if OpenRouter API is unreachable
+  const KNOWN_FREE = [
+    { id: 'stepfun/step-3.5-flash:free',             name: 'Step-3.5 Flash' },
+    { id: 'microsoft/phi-3-mini-128k-instruct:free',  name: 'Phi-3 Mini' },
+    { id: 'meta-llama/llama-3.1-8b-instruct:free',    name: 'Llama 3.1 8B' },
+    { id: 'mistralai/mistral-7b-instruct:free',       name: 'Mistral 7B' },
+    { id: 'google/gemma-2-9b-it:free',                name: 'Gemma 2 9B' },
+    { id: 'qwen/qwen-2-7b-instruct:free',             name: 'Qwen 2 7B' },
+    { id: 'nousresearch/hermes-3-llama-3.1-8b:free',  name: 'Hermes 3' },
+  ];
+
+  let liveModels = [];
   try {
     const list = await llm.openrouter.models.list();
-    // Return all free models + the current active model
-    const freeModels = (list.data || [])
-      .filter(m => m.id.endsWith(':free'))
-      .map(m => ({
-        id:          m.id,
-        name:        m.name || m.id,
-        contextLength: m.context_length,
-        active:      m.id === llm.currentModel
-      }))
-      .sort((a, b) => a.id.localeCompare(b.id));
-    res.json({ current: llm.currentModel, models: freeModels });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    liveModels = (list.data || []).filter(m => m.id.endsWith(':free'));
+  } catch (_) {
+    // OpenRouter list unavailable — fall back to known list
   }
+
+  // Merge: prefer live data, fall back to known list
+  const merged = KNOWN_FREE.map(km => {
+    const live = liveModels.find(lm => lm.id === km.id);
+    return {
+      id:            km.id,
+      name:          live?.name || km.name,
+      contextLength: live?.context_length || null,
+      active:        km.id === llm.currentModel
+    };
+  });
+
+  res.json({ current: llm.currentModel, models: merged });
 });
 
 router.post('/models/switch', requireSession, async (req, res) => {
@@ -109,21 +125,29 @@ router.get('/diagnostics', requireSession, async (req, res) => {
     result.ollama = { status: 'error', host: process.env.OLLAMA_HOST, error: err.message || String(err) };
   }
 
-  // Test OpenRouter (LLM generation)
+  // Test OpenRouter — do a lightweight chat ping instead of models.list()
+  // models.list() can 401 on some valid keys; a minimal chat call is more reliable
   try {
-    const models = await llm.openrouter.models.list();
+    const ping = await llm.openrouter.chat.completions.create({
+      model:      llm.currentModel,
+      messages:   [{ role: 'user', content: 'ping' }],
+      max_tokens: 1
+    });
     result.openrouter = {
-      status: 'ok',
-      model: process.env.OPENROUTER_MODEL,
-      apiKeySet: !!process.env.OPENROUTER_API_KEY,
-      availableModels: models.data?.length ?? 0
+      status:         'ok',
+      model:          llm.currentModel,
+      apiKeySet:      !!process.env.OPENROUTER_API_KEY,
+      availableModels: '—'   // skip full list to keep diagnostics fast
     };
   } catch (err) {
+    const msg = err.message || String(err);
+    // 429 = rate limit but key IS valid
+    const keyOk = msg.includes('429') || msg.includes('rate');
     result.openrouter = {
-      status: 'error',
-      model: process.env.OPENROUTER_MODEL,
+      status:    keyOk ? 'ok' : 'error',
+      model:     llm.currentModel,
       apiKeySet: !!process.env.OPENROUTER_API_KEY,
-      error: err.message || String(err)
+      error:     keyOk ? 'Rate limited (key is valid)' : msg
     };
   }
 

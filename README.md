@@ -313,13 +313,6 @@ docker logs mnemosyne-ollama --tail 30
 **OpenRouter returns 429**
 Free tier has rate limits. Wait 30–60 seconds and retry, or switch to a less busy free model via the System Status tab.
 
-**Container name conflicts on startup**
-If you previously ran the stack with old `avabas-*` container names, remove them first:
-```bash
-docker rm -f avabas-ollama avabas-chromadb avabas-redis avabas-rag-server avabas-rag-ui 2>/dev/null
-docker compose up -d
-```
-
 ---
 
 ## Docker Container Reference
