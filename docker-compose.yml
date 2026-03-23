@@ -1,0 +1,170 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  Mnemosyne RAG Stack
+#
+#  Architecture:
+#    Ollama (Docker)      → embeddings only (nomic-embed-text, ~270 MB)
+#    OpenRouter (cloud)   → LLM generation  (phi-3-mini free tier)
+#    ChromaDB (Docker)    → vector storage
+#    Redis (Docker)       → cache + job queue
+#
+#  SETUP (one-time):
+#    1. Get a free OpenRouter API key at https://openrouter.ai
+#    2. cp rag-server/.env.example rag-server/.env
+#       Fill in: RAG_API_KEY, ADMIN_PASSWORD, OPENROUTER_API_KEY
+#    3. docker compose up -d
+#       Ollama will pull nomic-embed-text (~270 MB) on first boot.
+#       Watch: docker logs mnemosyne-ollama-init -f
+# ═══════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Ollama: Embeddings only ────────────────────────────────────────
+  # Pinned to 0.3.12 — avoids the CUDA layer extraction bug on Windows.
+  # Only nomic-embed-text is pulled (~270 MB). No LLM model needed.
+  ollama:
+    image: ollama/ollama:0.3.12
+    container_name: mnemosyne-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_KEEP_ALIVE=24h
+    ports:
+      - "127.0.0.1:11435:11434"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - rag-net
+
+  # ── Ollama bootstrap: pull embedding model on first boot ───────────
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: mnemosyne-ollama-init
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - rag-net
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Pulling nomic-embed-text (~270 MB)..."
+        curl -sf -X POST http://ollama:11434/api/pull \
+          -d '{"name":"nomic-embed-text"}' \
+          --no-buffer -m 300
+        echo ""
+        echo "Embedding model ready."
+
+  # ── ChromaDB: Vector Database ─────────────────────────────────────
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: mnemosyne-chromadb
+    restart: unless-stopped
+    volumes:
+      - chromadb_data:/chroma/chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=False
+      - ALLOW_RESET=True
+    ports:
+      - "127.0.0.1:8001:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - rag-net
+
+  # ── Redis: Cache + Queue backend ──────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: mnemosyne-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save ""
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag-net
+
+  # ── RAG Server: Authenticated REST API ────────────────────────────
+  rag-server:
+    build:
+      context: ./rag-server
+      dockerfile: Dockerfile
+    container_name: mnemosyne-rag-server
+    restart: unless-stopped
+    depends_on:
+      chromadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    env_file:
+      - ./rag-server/.env
+    environment:
+      - NODE_ENV=production
+      - OLLAMA_HOST=http://ollama:11434
+      - CHROMA_URL=http://chromadb:8000
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - rag_uploads:/tmp/rag-uploads
+      - rag_logs:/var/log/rag
+    ports:
+      - "127.0.0.1:3001:3001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - rag-net
+
+  # ── RAG UI: React Admin Interface ─────────────────────────────────
+  rag-ui:
+    build:
+      context: ./rag-ui
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=/api
+    container_name: mnemosyne-rag-ui
+    restart: unless-stopped
+    depends_on:
+      rag-server:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - rag-net
+
+volumes:
+  ollama_data:
+  chromadb_data:
+  redis_data:
+  rag_uploads:
+  rag_logs:
+
+networks:
+  rag-net:
+    driver: bridge
+    name: mnemosyne-rag-network
