@@ -2,17 +2,12 @@ const { Ollama } = require('ollama');
 const OpenAI     = require('openai');
 const { logger } = require('../utils/logger');
 
-// ── Embedding: Ollama (local) ─────────────────────────────────────────
+// ── Embedding config (env only — not runtime-changeable) ──────────────
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://ollama:11434';
 const EMBED_MODEL = process.env.EMBED_MODEL || 'nomic-embed-text';
 
-// ── Generation: OpenRouter (cloud) ───────────────────────────────────
-const OPENROUTER_API_KEY  = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_MODEL    = process.env.OPENROUTER_MODEL || 'stepfun/step-3.5-flash:free';
-const OPENROUTER_BASE     = 'https://openrouter.ai/api/v1';
-
-// Mutable — changed live by switchModel()
-let ACTIVE_MODEL = OPENROUTER_MODEL;
+// ── OpenRouter base ────────────────────────────────────────────────────
+const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
 // Safely extract a readable message from any error shape
 function errMsg(err) {
@@ -24,32 +19,38 @@ function errMsg(err) {
   try { return JSON.stringify(err); } catch { return String(err); }
 }
 
+// Lazy-load configService to avoid circular deps at module init time
+function cfg() {
+  return require('./configService');
+}
+
 class LLMService {
   constructor() {
-    this.ollama = new Ollama({ host: OLLAMA_HOST });
+    this.ollama          = new Ollama({ host: OLLAMA_HOST });
+    this.embeddingReady  = false;
+    this.generationReady = false;
+    logger.info(`[LLM] Embedding → Ollama ${OLLAMA_HOST} / ${EMBED_MODEL}`);
+  }
 
-    if (!OPENROUTER_API_KEY) {
-      logger.warn('[LLM] OPENROUTER_API_KEY not set — generation will fail');
-    }
-
-    this.openrouter = new OpenAI({
-      apiKey:  OPENROUTER_API_KEY || 'not-set',
+  // ── Build a fresh OpenRouter client using the current saved API key ──
+  _openrouterClient() {
+    const apiKey = cfg().get('openrouterApiKey');
+    if (!apiKey) throw new Error('OpenRouter API key is not configured. Set it in Settings.');
+    return new OpenAI({
+      apiKey,
       baseURL: OPENROUTER_BASE,
       defaultHeaders: {
         'HTTP-Referer': process.env.APP_URL   || 'http://localhost:3000',
         'X-Title':      process.env.APP_TITLE || 'Mnemosyne RAG'
       }
     });
-
-    this.embeddingReady  = false;
-    this.generationReady = false;
-
-    logger.info(`[LLM] Embedding  → Ollama ${OLLAMA_HOST} / ${EMBED_MODEL}`);
-    logger.info(`[LLM] Generation → OpenRouter / ${ACTIVE_MODEL}`);
   }
 
-  // ── Init ─────────────────────────────────────────────────────────
+  get currentModel() {
+    return cfg().get('openrouterModel');
+  }
 
+  // ── Init ──────────────────────────────────────────────────────────────
   async init() {
     await Promise.all([
       this._initEmbedding(),
@@ -69,7 +70,7 @@ class LLMService {
         if (!names.some(n => n.includes('nomic-embed-text'))) {
           logger.warn(`[Embed] ${EMBED_MODEL} not found — pulling…`);
           await this.ollama.pull({ model: EMBED_MODEL });
-          logger.info(`[Embed] Pull complete`);
+          logger.info('[Embed] Pull complete');
         }
 
         this.embeddingReady = true;
@@ -80,38 +81,49 @@ class LLMService {
         if (i < MAX) await new Promise(r => setTimeout(r, 5000));
       }
     }
-    logger.error('[Embed] Failed to connect to Ollama. Check: docker logs mnemosyne-ollama');
+    logger.error('[Embed] Failed. Check: docker logs mnemosyne-ollama');
   }
 
   async _initGeneration() {
-    if (!OPENROUTER_API_KEY) {
-      logger.error('[LLM] OPENROUTER_API_KEY missing — set it in rag-server/.env');
+    const apiKey = cfg().get('openrouterApiKey');
+    if (!apiKey) {
+      logger.warn('[LLM] No OpenRouter API key configured — set it in the Settings tab');
+      // Mark ready so the server starts; queries will fail gracefully with a clear message
+      this.generationReady = true;
       return;
     }
     try {
       logger.info('[LLM] Verifying OpenRouter API key…');
-      // Use a simple models.list() call — if it throws, key is bad
-      await this.openrouter.models.list();
+      const client = this._openrouterClient();
+      await client.chat.completions.create({
+        model: this.currentModel,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 1
+      });
       this.generationReady = true;
-      logger.info(`[LLM] OpenRouter ready ✓  model: ${ACTIVE_MODEL}`);
+      logger.info(`[LLM] OpenRouter ready ✓  model: ${this.currentModel}`);
     } catch (err) {
       const msg = errMsg(err);
-      // Some OpenRouter keys work for chat but models.list() returns 401
-      // Don't block generation — mark ready and let the first real call confirm
-      if (msg.includes('401') || msg.includes('403')) {
-        logger.warn(`[LLM] models.list() auth error (${msg}) — marking ready anyway, key will be validated on first query`);
+      // 429 = rate limit → key works fine
+      if (msg.includes('429') || msg.toLowerCase().includes('rate')) {
+        logger.warn('[LLM] OpenRouter rate limited on ping — marking ready anyway');
         this.generationReady = true;
       } else {
-        logger.error(`[LLM] OpenRouter verification failed: ${msg}`);
-        logger.error('[LLM] Check OPENROUTER_API_KEY in rag-server/.env');
-        // Still mark ready — let queries fail with clear messages rather than blocking all queries
+        logger.error(`[LLM] OpenRouter key verification failed: ${msg}`);
+        // Still mark ready — let queries fail with a useful message
         this.generationReady = true;
       }
     }
   }
 
-  // ── Embedding ────────────────────────────────────────────────────
+  // ── Re-initialise generation after key/model update in settings ──────
+  async reinitGeneration() {
+    this.generationReady = false;
+    await this._initGeneration();
+    return this.generationReady;
+  }
 
+  // ── Embedding ─────────────────────────────────────────────────────────
   async embed(text) {
     if (!this.embeddingReady) {
       throw new Error('Ollama not ready. Check: docker logs mnemosyne-ollama');
@@ -119,7 +131,7 @@ class LLMService {
     try {
       const response = await this.ollama.embeddings({ model: EMBED_MODEL, prompt: text });
       if (!response?.embedding?.length) {
-        throw new Error('Ollama returned empty embedding — model may not be loaded');
+        throw new Error('Ollama returned empty embedding — model may not be loaded yet');
       }
       return response.embedding;
     } catch (err) {
@@ -135,13 +147,15 @@ class LLMService {
     return results;
   }
 
-  // ── Generation ───────────────────────────────────────────────────
-
+  // ── Generation ────────────────────────────────────────────────────────
   async generateResponse(query, context) {
-    if (!OPENROUTER_API_KEY) {
-      throw new Error('OPENROUTER_API_KEY not configured. Set it in rag-server/.env');
+    const apiKey = cfg().get('openrouterApiKey');
+    if (!apiKey) {
+      throw new Error('OpenRouter API key not configured. Go to the Settings tab to add your key.');
     }
 
+    const model       = this.currentModel;
+    const client      = this._openrouterClient();
     const contextText = context
       .map((c, i) => `[Source ${i + 1}: ${c.metadata?.filename || 'Document'}]\n${c.text}`)
       .join('\n\n---\n\n');
@@ -167,8 +181,8 @@ Question: ${query}
 Answer based ONLY on the context above:`;
 
     try {
-      const completion = await this.openrouter.chat.completions.create({
-        model:       ACTIVE_MODEL,
+      const completion = await client.chat.completions.create({
+        model,
         messages:    [
           { role: 'system', content: systemPrompt },
           { role: 'user',   content: userPrompt   }
@@ -180,47 +194,36 @@ Answer based ONLY on the context above:`;
       const answer = completion.choices?.[0]?.message?.content;
       if (!answer) throw new Error('OpenRouter returned an empty response');
 
-      logger.debug(`[LLM] Tokens: ${completion.usage?.total_tokens ?? '?'} · model: ${ACTIVE_MODEL}`);
+      logger.debug(`[LLM] Tokens: ${completion.usage?.total_tokens ?? '?'} · model: ${model}`);
       return answer;
 
     } catch (err) {
       const msg = errMsg(err);
       logger.error(`[LLM] generateResponse() failed: ${msg}`);
 
+      if (msg.includes('401') || msg.toLowerCase().includes('user not found') || msg.toLowerCase().includes('unauthorized')) {
+        throw new Error('OpenRouter API key is invalid or expired. Update it in Settings → API Configuration.');
+      }
       if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
         throw new Error('OpenRouter rate limit reached. Wait a moment and retry.');
       }
-      if (msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
-        throw new Error('Invalid OpenRouter API key. Check OPENROUTER_API_KEY in .env.');
-      }
       if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
-        throw new Error(`Model "${ACTIVE_MODEL}" not found on OpenRouter. Switch to a different model.`);
+        throw new Error(`Model "${model}" not found on OpenRouter. Switch to a different model in Settings.`);
       }
       throw new Error(`LLM generation failed: ${msg}`);
     }
   }
 
-  // ── Live model switching ─────────────────────────────────────────
-
-  /**
-   * Switch the active LLM at runtime — no restart needed.
-   * @param {string} modelId  e.g. 'meta-llama/llama-3.1-8b-instruct:free'
-   */
+  // ── Live model switching ───────────────────────────────────────────────
   async switchModel(modelId) {
     if (!modelId || typeof modelId !== 'string' || !modelId.trim()) {
       throw new Error('Invalid model ID');
     }
-    const previous = ACTIVE_MODEL;
-    ACTIVE_MODEL   = modelId.trim();
-    logger.info(`[LLM] Model switched: ${previous} → ${ACTIVE_MODEL}`);
-    return { previous, current: ACTIVE_MODEL };
+    const previous = this.currentModel;
+    cfg().update({ openrouterModel: modelId.trim() });
+    logger.info(`[LLM] Model switched: ${previous} → ${modelId}`);
+    return { previous, current: modelId };
   }
-
-  get currentModel() {
-    return ACTIVE_MODEL;
-  }
-
-  // ── Status ───────────────────────────────────────────────────────
 
   get ready() {
     return this.embeddingReady && this.generationReady;

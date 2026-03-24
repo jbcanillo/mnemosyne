@@ -5,6 +5,7 @@ import LoginScreen from './components/LoginScreen';
 import QueryPanel from './components/QueryPanel';
 import DocumentsPanel from './components/DocumentsPanel';
 import StatusPanel from './components/StatusPanel';
+import SettingsPanel from './components/SettingsPanel';
 import { ragApi } from './api';
 import './App.css';
 
@@ -12,6 +13,7 @@ const TABS = [
   { id: 'query',     label: 'Query',         icon: '⚡' },
   { id: 'documents', label: 'Knowledge Base', icon: '📚' },
   { id: 'status',    label: 'System Status',  icon: '🛰' },
+  { id: 'settings',  label: 'Settings',       icon: '⚙' },
 ];
 
 function AuthenticatedApp() {
@@ -132,6 +134,9 @@ function AuthenticatedApp() {
         </div>
         <div style={{ display: activeTab === 'status'    ? 'contents' : 'none' }}>
           <StatusPanel info={info} serverOnline={serverOnline} onRefresh={checkHealth} />
+        </div>
+        <div style={{ display: activeTab === 'settings'  ? 'contents' : 'none' }}>
+          <SettingsPanel onRefresh={checkHealth} />
         </div>
       </main>
     </div>

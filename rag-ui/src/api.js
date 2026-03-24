@@ -84,6 +84,11 @@ export const ragApi = {
   switchModel:    (modelId) => api.post('/models/switch', { modelId }),
   clearCache:     () => api.delete('/cache'),
   resetVectorStore: () => api.post('/vector-store/reset'),
+
+  // Settings
+  getSettings:    () => api.get('/settings'),
+  updateSettings: (data) => api.put('/settings', data),
+  testApiKey:     () => api.post('/settings/test-key'),
   debugQuery:     (q) => api.get(`/query/debug?q=${encodeURIComponent(q)}`),
   health:         () => axios.get(`${BASE_URL.replace('/api', '')}/health`).then(r => r.data),
 };

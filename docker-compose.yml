@@ -3,7 +3,7 @@
 #
 #  Architecture:
 #    Ollama (Docker)      → embeddings only (nomic-embed-text, ~270 MB)
-#    OpenRouter (cloud)   → LLM generation  (phi-3-mini free tier)
+#    OpenRouter (cloud)   → LLM generation  (free tier)
 #    ChromaDB (Docker)    → vector storage
 #    Redis (Docker)       → cache + job queue
 #
@@ -107,6 +107,9 @@ services:
       dockerfile: Dockerfile
     container_name: mnemosyne-rag-server
     restart: unless-stopped
+    user: root
+    command: >
+      sh -c "chmod -R 777 /data/config && npm start"
     depends_on:
       chromadb:
         condition: service_healthy
@@ -124,6 +127,7 @@ services:
     volumes:
       - rag_uploads:/tmp/rag-uploads
       - rag_logs:/var/log/rag
+      - rag_config:/data/config
     ports:
       - "127.0.0.1:3001:3001"
     healthcheck:
@@ -163,6 +167,7 @@ volumes:
   redis_data:
   rag_uploads:
   rag_logs:
+  rag_config:    # persists OpenRouter key and settings across container restarts
 
 networks:
   rag-net:

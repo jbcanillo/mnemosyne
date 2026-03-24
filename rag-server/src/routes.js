@@ -6,6 +6,7 @@ const documentController = require('./controllers/documentController');
 const authController     = require('./controllers/authController');
 const uploadMiddleware   = require('./middleware/upload');
 const { requireApiKey, requireSession } = require('./middleware/auth');
+const settingsController = require('./controllers/settingsController');
 const { createRateLimiter } = require('./middleware/rateLimiter');
 
 // ── Auth ─────────────────────────────────────────────────────────────
@@ -28,6 +29,90 @@ router.post('/query',              eitherAuth, queryRateLimit, queryController.q
 router.get('/query/status/:jobId', eitherAuth, queryController.getJobStatus);
 router.get('/query/debug',         eitherAuth, queryController.debug);
 
+// ── Step-by-step pipeline test — pinpoints exactly where queries fail ──
+router.get('/query/test', eitherAuth, async (req, res) => {
+  const llm = require('./services/llmService');
+  const vs  = require('./services/vectorStore');
+  const testQuery = req.query.q || 'test';
+  const report = { query: testQuery, steps: {} };
+
+  // Step 1: Ollama reachable?
+  try {
+    const list = await llm.ollama.list();
+    const names = list.models.map(m => m.name);
+    report.steps.ollama = {
+      ok: true,
+      models: names,
+      embedModelLoaded: names.some(n => n.includes('nomic-embed-text'))
+    };
+  } catch (err) {
+    report.steps.ollama = { ok: false, error: err.message || String(err) };
+  }
+
+  // Step 2: Embedding works?
+  if (report.steps.ollama?.ok && report.steps.ollama?.embedModelLoaded) {
+    try {
+      const emb = await llm.embed(testQuery);
+      report.steps.embedding = { ok: true, dimensions: emb.length };
+    } catch (err) {
+      report.steps.embedding = { ok: false, error: err.message || String(err) };
+    }
+  } else {
+    report.steps.embedding = { ok: false, error: 'Skipped — Ollama not ready' };
+  }
+
+  // Step 3: ChromaDB / vector search works?
+  try {
+    const stats = await vs.stats();
+    report.steps.chromadb = { ok: true, totalChunks: stats.totalChunks, collection: stats.collection };
+    if (report.steps.embedding?.ok) {
+      const emb = await llm.embed(testQuery);
+      const chunks = await vs.query(emb, 3);
+      report.steps.vector_search = {
+        ok: true,
+        chunksReturned: chunks.length,
+        topScore: chunks[0]?.relevanceScore?.toFixed(4) ?? 'n/a',
+        threshold: parseFloat(process.env.MIN_RELEVANCE_SCORE || '0.15')
+      };
+    }
+  } catch (err) {
+    report.steps.chromadb = { ok: false, error: err.message || String(err) };
+  }
+
+  // Step 4: OpenRouter reachable?
+  try {
+    const ping = await llm.openrouter.chat.completions.create({
+      model: llm.currentModel,
+      messages: [{ role: 'user', content: 'Reply with the single word: ok' }],
+      max_tokens: 5
+    });
+    const reply = ping.choices?.[0]?.message?.content;
+    report.steps.openrouter = {
+      ok: true,
+      model: llm.currentModel,
+      apiKeySet: !!process.env.OPENROUTER_API_KEY,
+      testReply: reply
+    };
+  } catch (err) {
+    const msg = err.message || String(err);
+    report.steps.openrouter = {
+      ok: false,
+      model: llm.currentModel,
+      apiKeySet: !!process.env.OPENROUTER_API_KEY,
+      error: msg
+    };
+  }
+
+  // Summary
+  const allOk = Object.values(report.steps).every(s => s.ok);
+  const failedStep = Object.entries(report.steps).find(([,s]) => !s.ok);
+  report.summary = allOk
+    ? 'All steps passing — queries should work'
+    : `Failing at step: ${failedStep?.[0]} — ${failedStep?.[1]?.error}`;
+
+  res.status(allOk ? 200 : 207).json(report);
+});
+
 // ── Documents (Session only) ─────────────────────────────────────────
 router.post('/documents/upload',             requireSession, uploadMiddleware.single('file'), documentController.upload);
 router.get('/documents',                     requireSession, documentController.list);
@@ -47,6 +132,11 @@ router.post('/vector-store/reset', requireSession, async (req, res) => {
   }
 });
 router.get('/info',     requireSession, queryController.info);
+
+// ── Settings (Session only) ───────────────────────────────────────────
+router.get('/settings',          requireSession, settingsController.get);
+router.put('/settings',          requireSession, settingsController.update);
+router.post('/settings/test-key',requireSession, settingsController.testKey);
 
 // ── Live model switching (Session only) ───────────────────────────────
 router.get('/models', requireSession, async (req, res) => {

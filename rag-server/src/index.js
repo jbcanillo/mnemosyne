@@ -4,19 +4,31 @@ const cors    = require('cors');
 const helmet  = require('helmet');
 const morgan  = require('morgan');
 const { createRateLimiter } = require('./middleware/rateLimiter');
-const { logger } = require('./utils/logger');
-const routes  = require('./routes');
+const { logger }   = require('./utils/logger');
+const routes       = require('./routes');
+const { spec, swaggerUi } = require('./swagger');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Security headers ─────────────────────────────────────────────────
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+// Relax CSP for Swagger UI (needs inline scripts/styles)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'", "'unsafe-inline'"],
+      styleSrc:    ["'self'", "'unsafe-inline'"],
+      imgSrc:      ["'self'", 'data:', 'https:'],
+      connectSrc:  ["'self'"]
+    }
+  }
+}));
 
-// ── CORS ─────────────────────────────────────────────────────────────
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
-  methods: ['GET', 'POST', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'X-API-Key', 'Authorization', 'X-Session-Token']
 }));
 
@@ -30,17 +42,35 @@ app.use('/api/', createRateLimiter({
   message: { error: 'Too many requests.', retryAfter: 60 }
 }));
 
-// ── Routes ───────────────────────────────────────────────────────────
+// ── Swagger UI — available at /docs ───────────────────────────────────
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(spec, {
+  customSiteTitle: 'Mnemosyne RAG API',
+  customCss: `
+    .swagger-ui .topbar { background: #080c14; }
+    .swagger-ui .topbar .download-url-wrapper { display: none; }
+    body { background: #04050a; }
+    .swagger-ui { color: #eef0f8; }
+  `,
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    defaultModelsExpandDepth: -1
+  }
+}));
+
+// ── API routes ────────────────────────────────────────────────────────
 app.use('/api', routes);
 
-// ── Health check — reports Ollama/ChromaDB readiness ─────────────────
+// ── Public health check ───────────────────────────────────────────────
 app.get('/health', (req, res) => {
   const llm = require('./services/llmService');
+  const cfg = require('./services/configService');
   res.json({
-    status: 'ok',
+    status:    'ok',
     timestamp: new Date().toISOString(),
-    service: 'Mnemosyne RAG Server',
-    ollama: llm.ready ? 'ready' : 'initializing'
+    service:   'Mnemosyne RAG Server',
+    ollama:    llm.embeddingReady ? 'ready' : 'initializing',
+    keySet:    cfg.hasApiKey()
   });
 });
 
@@ -51,33 +81,29 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
-// ── Start server then initialise LLM in background ───────────────────
-// Server starts immediately so Docker health checks pass.
-// LLM init runs async — uploads made before it's ready are queued
-// and will be processed once Ollama is reachable.
+// ── Start ─────────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', async () => {
-  logger.info(`RAG Server running on port ${PORT}`);
-  logger.info('Authentication: API Key + Session Token enabled');
+  logger.info(`Mnemosyne RAG Server running on port ${PORT}`);
+  logger.info(`Swagger UI available at http://localhost:${PORT}/docs`);
 
-  // Init LLM service (connects to Ollama, verifies models exist)
+  // Load persisted config first
+  const cfg = require('./services/configService');
+  cfg.load();
+
+  // Init LLM (Ollama for embed + verify OpenRouter if key exists)
   try {
-    const llmService = require('./services/llmService');
-    await llmService.init();
-    logger.info('LLM service ready — document ingestion enabled');
+    const llm = require('./services/llmService');
+    await llm.init();
   } catch (err) {
-    logger.error('LLM service failed to initialise:', err.message);
-    logger.error('Check that Ollama is running and models are pulled:');
-    logger.error('  ollama pull nomic-embed-text');
-    logger.error('  ollama pull phi3:mini');
+    logger.error('LLM init error:', err.message);
   }
 
-  // Init ChromaDB connection
+  // Init ChromaDB
   try {
-    const vectorStore = require('./services/vectorStore');
-    await vectorStore.init();
-    logger.info('Vector store ready');
+    const vs = require('./services/vectorStore');
+    await vs.init();
   } catch (err) {
-    logger.error('ChromaDB failed to initialise:', err.message);
+    logger.error('Vector store init error:', err.message);
   }
 });
 

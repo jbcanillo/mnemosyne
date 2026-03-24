@@ -1,0 +1,109 @@
+.settings-panel { display: flex; flex-direction: column; gap: 20px; }
+
+.settings-loading {
+  display: flex; align-items: center; gap: 12px;
+  color: var(--text3); font-size: 14px; padding: 40px;
+}
+
+/* ── Card ── */
+.sp-card {
+  background: rgba(8,12,20,0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 22px 24px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.sp-card-docs {
+  border-color: rgba(124,92,252,0.2);
+  background: rgba(124,92,252,0.04);
+}
+
+.sp-card-header {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.sp-card-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 700; color: var(--text);
+}
+.sp-card-icon { font-size: 16px; }
+
+.sp-desc { font-size: 12px; color: var(--text3); line-height: 1.6; }
+.sp-link { color: var(--accent2); text-decoration: none; }
+.sp-link:hover { text-decoration: underline; }
+
+/* ── Key status ── */
+.key-status {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; padding: 4px 12px; border-radius: 20px; border: 1px solid;
+}
+.key-ok   { color: var(--success); border-color: rgba(61,255,160,0.25); background: rgba(61,255,160,0.06); }
+.key-missing { color: var(--danger); border-color: rgba(255,83,112,0.25); background: rgba(255,83,112,0.06); }
+.key-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  animation: pulse 2s infinite;
+}
+.key-masked { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+
+/* ── Key form ── */
+.key-form  { display: flex; flex-direction: column; gap: 12px; }
+.key-input-wrap { position: relative; }
+.key-input-wrap .sp-input { padding-right: 44px; }
+.key-toggle {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; font-size: 15px; opacity: 0.5;
+}
+.key-toggle:hover { opacity: 1; }
+.key-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ── Test result ── */
+.test-result {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 12px 14px; border-radius: var(--radius); font-size: 12px; line-height: 1.6;
+}
+.test-ok   { background: rgba(61,255,160,0.06); border: 1px solid rgba(61,255,160,0.2); color: var(--success); }
+.test-fail { background: rgba(255,83,112,0.06); border: 1px solid rgba(255,83,112,0.2); color: var(--danger); }
+.tr-icon   { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+/* ── Form ── */
+.settings-form { display: flex; flex-direction: column; gap: 18px; }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label {
+  font-size: 11px; font-weight: 600; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.form-optional { font-size: 10px; color: var(--text3); text-transform: none; font-weight: 400; letter-spacing: 0; }
+.form-hint   { font-size: 11px; color: var(--text3); }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.form-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+.sp-input, .sp-select {
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text); font-size: 13px; font-family: var(--sans);
+  outline: none; transition: all 0.2s; width: 100%;
+}
+.sp-input:focus, .sp-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124,92,252,0.1);
+}
+.sp-input::placeholder { color: var(--text3); }
+.sp-select option { background: var(--bg3); color: var(--text); }
+
+.docs-link { align-self: flex-start; }
+.docs-link code { font-family: var(--mono); font-size: 11px; }
+
+/* ── Spinners ── */
+.spinner-lg  { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+.spinner-xs  { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.2); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin   { to { transform: rotate(360deg); } }
+@keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.3} }

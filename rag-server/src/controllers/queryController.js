@@ -23,12 +23,24 @@ async function processRagQuery(query, options = {}, job = null) {
   if (job) await job.progress(10);
 
   // 1. Embed the query
-  const queryEmbedding = await llmService.embed(query);
+  let queryEmbedding;
+  try {
+    queryEmbedding = await llmService.embed(query);
+  } catch (err) {
+    err.step = 'embedding';
+    throw err;
+  }
   if (job) await job.progress(30);
 
   // 2. Retrieve top-K chunks
-  const topK = options.topK || TOP_K;
-  const chunks = await vectorStore.query(queryEmbedding, topK);
+  let chunks;
+  try {
+    const topK = options.topK || TOP_K;
+    chunks = await vectorStore.query(queryEmbedding, topK);
+  } catch (err) {
+    err.step = 'vector_search';
+    throw err;
+  }
   if (job) await job.progress(60);
 
   // 3. Log what we got back before filtering (key for debugging)
@@ -65,7 +77,13 @@ async function processRagQuery(query, options = {}, job = null) {
   logger.info(`[Query] Using ${relevantChunks.length} chunks (scores: ${relevantChunks.map(c => c.relevanceScore.toFixed(3)).join(', ')})`);
 
   // 5. Generate response via OpenRouter
-  const answer = await llmService.generateResponse(query, relevantChunks);
+  let answer;
+  try {
+    answer = await llmService.generateResponse(query, relevantChunks);
+  } catch (err) {
+    err.step = 'llm_generation';
+    throw err;
+  }
   if (job) await job.progress(90);
 
   const result = {
@@ -112,8 +130,15 @@ exports.query = async (req, res) => {
     return res.json({ ...result, query: trimmedQuery });
 
   } catch (err) {
-    logger.error('[Query] Error:', err.message);
-    return res.status(500).json({ error: 'Query processing failed', message: err.message });
+    // Extract the real message regardless of error shape
+    const msg = err?.message || err?.error?.message || (typeof err === 'string' ? err : JSON.stringify(err)) || 'Unknown error';
+    logger.error('[Query] Error:', msg);
+    if (err?.stack) logger.error('[Query] Stack:', err.stack.split('\n').slice(0,3).join(' | '));
+    return res.status(500).json({
+      error: 'Query processing failed',
+      message: msg,
+      step: err?.step || 'unknown'
+    });
   }
 };
 

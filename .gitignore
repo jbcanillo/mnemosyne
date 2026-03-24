@@ -1,0 +1,5 @@
+/rag-server/.env
+/rag-server/node_modules/
+/rag-server/dist/
+/rag-ui/node_modules/
+/rag-ui/dist/
