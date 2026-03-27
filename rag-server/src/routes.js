@@ -133,6 +133,82 @@ router.post('/vector-store/reset', requireSession, async (req, res) => {
 });
 router.get('/info',     requireSession, queryController.info);
 
+// ── Token usage & model info (Session only) ──────────────────────────
+router.get('/usage', requireSession, (req, res) => {
+  const cfg = require('./services/configService');
+  const llm = require('./services/llmService');
+  res.json({
+    currentModel:  llm.currentModel,
+    embeddingModel:'nomic-embed-text',
+    tokenUsage:    cfg.getTokenUsage()
+  });
+});
+
+router.delete('/usage', requireSession, (req, res) => {
+  const cfg = require('./services/configService');
+  cfg.resetTokenUsage();
+  res.json({ message: 'Token usage stats reset.' });
+});
+
+// ── Healthcheck (public) ──────────────────────────────────────────────
+router.get('/healthcheck', eitherAuth, async (req, res) => {
+  const llm = require('./services/llmService');
+  const vs  = require('./services/vectorStore');
+  const cfg = require('./services/configService');
+  const checks = {};
+
+  // Ollama
+  try {
+    const list = await llm.ollama.list();
+    checks.ollama = { ok: true, models: list.models.map(m => m.name) };
+  } catch (err) {
+    checks.ollama = { ok: false, error: err.message };
+  }
+
+  // ChromaDB
+  try {
+    const stats = await vs.stats();
+    checks.chromadb = { ok: true, chunks: stats.totalChunks };
+  } catch (err) {
+    checks.chromadb = { ok: false, error: err.message };
+  }
+
+  // OpenRouter (fast ping)
+  try {
+    const client = llm._openrouterClient();
+    const r = await client.chat.completions.create({
+      model: llm.currentModel,
+      messages: [{ role: 'user', content: 'ping' }],
+      max_tokens: 1
+    });
+    checks.openrouter = { ok: true, model: llm.currentModel, latencyMs: null };
+  } catch (err) {
+    const msg = err.message || '';
+    checks.openrouter = {
+      ok: msg.includes('429'),   // 429 = rate limited but key is valid
+      model: llm.currentModel,
+      error: msg
+    };
+  }
+
+  // Redis
+  try {
+    const cache = require('./services/cacheService');
+    const s = await cache.stats();
+    checks.redis = { ok: true, backend: s.backend, entries: s.entries };
+  } catch (err) {
+    checks.redis = { ok: false, error: err.message };
+  }
+
+  const allOk = Object.values(checks).every(c => c.ok);
+  res.status(allOk ? 200 : 207).json({
+    status:    allOk ? 'healthy' : 'degraded',
+    timestamp: new Date().toISOString(),
+    keySet:    cfg.hasApiKey(),
+    checks
+  });
+});
+
 // ── Settings (Session only) ───────────────────────────────────────────
 router.get('/settings',          requireSession, settingsController.get);
 router.put('/settings',          requireSession, settingsController.update);

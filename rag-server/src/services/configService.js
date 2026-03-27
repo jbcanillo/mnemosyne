@@ -17,6 +17,18 @@ const DEFAULTS = {
   cacheTtl:          parseInt(process.env.CACHE_TTL || '3600'),
 };
 
+// In-memory token usage tracking (resets on server restart)
+// Persisted snapshot saved to disk periodically
+const tokenUsage = {
+  totalPromptTokens:     0,
+  totalCompletionTokens: 0,
+  totalTokens:           0,
+  queryCount:            0,
+  sessionStart:          new Date().toISOString(),
+  lastQuery:             null,
+  byModel:               {}   // { modelId: { prompt, completion, total, queries } }
+};
+
 class ConfigService {
   constructor() {
     this._config = null;
@@ -106,6 +118,45 @@ class ConfigService {
   // Check if the OpenRouter key is configured
   hasApiKey() {
     return !!this.load().openrouterApiKey;
+  }
+
+  // ── Token usage tracking ─────────────────────────────────────────────
+  trackTokens(usage, model) {
+    if (!usage) return;
+    const p = usage.prompt_tokens     || 0;
+    const c = usage.completion_tokens || 0;
+    const t = usage.total_tokens      || (p + c);
+
+    tokenUsage.totalPromptTokens     += p;
+    tokenUsage.totalCompletionTokens += c;
+    tokenUsage.totalTokens           += t;
+    tokenUsage.queryCount            += 1;
+    tokenUsage.lastQuery              = new Date().toISOString();
+
+    if (model) {
+      if (!tokenUsage.byModel[model]) {
+        tokenUsage.byModel[model] = { prompt: 0, completion: 0, total: 0, queries: 0 };
+      }
+      tokenUsage.byModel[model].prompt     += p;
+      tokenUsage.byModel[model].completion += c;
+      tokenUsage.byModel[model].total      += t;
+      tokenUsage.byModel[model].queries    += 1;
+    }
+  }
+
+  getTokenUsage() {
+    return { ...tokenUsage };
+  }
+
+  resetTokenUsage() {
+    tokenUsage.totalPromptTokens     = 0;
+    tokenUsage.totalCompletionTokens = 0;
+    tokenUsage.totalTokens           = 0;
+    tokenUsage.queryCount            = 0;
+    tokenUsage.sessionStart          = new Date().toISOString();
+    tokenUsage.lastQuery             = null;
+    tokenUsage.byModel               = {};
+    logger.info('[Config] Token usage stats reset');
   }
 }
 
