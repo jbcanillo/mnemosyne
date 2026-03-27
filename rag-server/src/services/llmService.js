@@ -194,6 +194,10 @@ Answer based ONLY on the context above:`;
       const answer = completion.choices?.[0]?.message?.content;
       if (!answer) throw new Error('OpenRouter returned an empty response');
 
+      // Track token usage in configService
+      if (completion.usage) {
+        cfg().trackTokens(completion.usage, model);
+      }
       logger.debug(`[LLM] Tokens: ${completion.usage?.total_tokens ?? '?'} · model: ${model}`);
       return answer;
 

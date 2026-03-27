@@ -85,6 +85,11 @@ export const ragApi = {
   clearCache:     () => api.delete('/cache'),
   resetVectorStore: () => api.post('/vector-store/reset'),
 
+  // Usage & healthcheck
+  getUsage:       () => api.get('/usage'),
+  resetUsage:     () => api.delete('/usage'),
+  healthcheck:    () => api.get('/healthcheck'),
+
   // Settings
   getSettings:    () => api.get('/settings'),
   updateSettings: (data) => api.put('/settings', data),

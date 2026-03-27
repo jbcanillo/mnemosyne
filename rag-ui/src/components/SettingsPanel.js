@@ -248,27 +248,7 @@ export default function SettingsPanel({ onRefresh }) {
         </form>
       </div>
 
-      {/* ── API Docs link ── */}
-      <div className="sp-card sp-card-docs">
-        <div className="sp-card-title">
-          <span className="sp-card-icon">📡</span>
-          API Documentation
-        </div>
-        <p className="sp-desc">
-          Interactive Swagger UI for testing all API endpoints directly from your browser.
-        </p>
-        <a
-          href="http://localhost:3001/docs"
-          target="_blank"
-          rel="noreferrer"
-          className="btn btn-ghost docs-link"
-        >
-          Open Swagger UI →
-        </a>
-        <div className="form-hint" style={{ marginTop: 8 }}>
-          Opens at <code>http://localhost:3001/docs</code> — use your session token or API key to authenticate.
-        </div>
-      </div>
+
     </div>
   );
 }

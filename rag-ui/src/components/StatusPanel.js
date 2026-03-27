@@ -3,36 +3,28 @@ import toast from 'react-hot-toast';
 import { ragApi } from '../api';
 import './StatusPanel.css';
 
-const KNOWN_FREE_MODELS = [
-  { id: 'stepfun/step-3.5-flash:free',             name: 'Step-3.5 Flash',     note: 'Fast · Free',        tag: 'stepfun' },
-  { id: 'microsoft/phi-3-mini-128k-instruct:free',  name: 'Phi-3 Mini',         note: '128k context',       tag: 'microsoft' },
-  { id: 'meta-llama/llama-3.1-8b-instruct:free',    name: 'Llama 3.1 8B',       note: 'Most capable free',  tag: 'meta' },
-  { id: 'mistralai/mistral-7b-instruct:free',       name: 'Mistral 7B',         note: 'Fast & balanced',    tag: 'mistralai' },
-  { id: 'google/gemma-2-9b-it:free',                name: 'Gemma 2 9B',         note: 'Google',             tag: 'google' },
-  { id: 'qwen/qwen-2-7b-instruct:free',             name: 'Qwen 2 7B',          note: 'Multilingual',       tag: 'qwen' },
-  { id: 'nousresearch/hermes-3-llama-3.1-8b:free',  name: 'Hermes 3',           note: 'Strong reasoning',   tag: 'nous' },
-];
-
 export default function StatusPanel({ info, serverOnline, onRefresh }) {
-  const [clearing,    setClearing]    = useState(false);
-  const [resetting,   setResetting]   = useState(false);
-  const [diagnostics, setDiagnostics] = useState(null);
-  const [diagLoading, setDiagLoading] = useState(false);
-  const [models,      setModels]      = useState(null);
-  const [switching,   setSwitching]   = useState(null); // modelId being switched to
-  const [debugQ,      setDebugQ]      = useState('');
-  const [debugResult, setDebugResult] = useState(null);
-  const [debugLoading,setDebugLoading]= useState(false);
+  const [clearing,     setClearing]     = useState(false);
+  const [resetting,    setResetting]    = useState(false);
+  const [diagLoading,  setDiagLoading]  = useState(false);
+  const [diagnostics,  setDiagnostics]  = useState(null);
+  const [usage,        setUsage]        = useState(null);
+  const [healthcheck,  setHealthcheck]  = useState(null);
+  const [hcLoading,    setHcLoading]    = useState(false);
+  const [resettingUsage, setResettingUsage] = useState(false);
+  const [debugQ,       setDebugQ]       = useState('');
+  const [debugResult,  setDebugResult]  = useState(null);
+  const [debugLoading, setDebugLoading] = useState(false);
 
   const loadAll = useCallback(async () => {
     setDiagLoading(true);
     try {
-      const [d, m] = await Promise.all([
+      const [d, u] = await Promise.all([
         ragApi.getDiagnostics(),
-        ragApi.getModels()
+        ragApi.getUsage()
       ]);
       setDiagnostics(d);
-      setModels(m);
+      setUsage(u);
     } catch (err) {
       toast.error('Failed to load status: ' + err.message);
     } finally {
@@ -41,6 +33,19 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  async function runHealthcheck() {
+    setHcLoading(true);
+    setHealthcheck(null);
+    try {
+      const r = await ragApi.healthcheck();
+      setHealthcheck(r);
+    } catch (err) {
+      toast.error('Healthcheck failed: ' + err.message);
+    } finally {
+      setHcLoading(false);
+    }
+  }
 
   async function clearCache() {
     setClearing(true);
@@ -57,21 +62,11 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
     finally { setResetting(false); }
   }
 
-  async function handleSwitch(modelId) {
-    if (modelId === models?.current) return;
-    setSwitching(modelId);
-    try {
-      await ragApi.switchModel(modelId);
-      toast.success(`Switched to ${modelId.split('/').pop()}`);
-      setModels(m => ({ ...m, current: modelId }));
-      // Refresh diagnostics to reflect new active model
-      const d = await ragApi.getDiagnostics();
-      setDiagnostics(d);
-    } catch (err) {
-      toast.error('Switch failed: ' + err.message);
-    } finally {
-      setSwitching(null);
-    }
+  async function resetUsage() {
+    setResettingUsage(true);
+    try { await ragApi.resetUsage(); toast.success('Usage stats reset'); await loadAll(); }
+    catch (err) { toast.error('Reset failed: ' + err.message); }
+    finally { setResettingUsage(false); }
   }
 
   async function runDebug(e) {
@@ -88,78 +83,145 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
   const cache  = info?.cache;
   const or     = diagnostics?.openrouter;
   const ollama = diagnostics?.ollama;
-  const current = models?.current || info?.models?.llm || '';
+  const tu     = usage?.tokenUsage;
+  const model  = usage?.currentModel || info?.models?.llm || '—';
+  const embedModel = usage?.embeddingModel || 'nomic-embed-text';
 
-  // Merge known models with live OpenRouter list
-  const liveModels = models?.models || [];
-  const mergedModels = KNOWN_FREE_MODELS.map(km => ({
-    ...km,
-    ...(liveModels.find(lm => lm.id === km.id) || {}),
-    available: liveModels.length === 0 || liveModels.some(lm => lm.id === km.id)
-  }));
+  // Cost estimate: ~$0.0005 per 1K tokens (rough average for free models)
+  const estimatedCost = tu ? ((tu.totalTokens / 1000) * 0.0005).toFixed(4) : '0.0000';
 
   return (
     <div className="status-panel">
       <div className="sp-header">
         <div className="panel-title">System Status</div>
-        <button className="btn btn-ghost btn-xs" onClick={loadAll} disabled={diagLoading}>
-          {diagLoading ? <span className="spinner-xs" /> : '↻'} Refresh
-        </button>
+        <div className="sp-header-actions">
+          <button className="btn btn-ghost btn-xs" onClick={runHealthcheck} disabled={hcLoading}>
+            {hcLoading ? <span className="spinner-xs" /> : '🩺'} Healthcheck
+          </button>
+          <button className="btn btn-ghost btn-xs" onClick={loadAll} disabled={diagLoading}>
+            {diagLoading ? <span className="spinner-xs" /> : '↻'} Refresh
+          </button>
+        </div>
       </div>
 
-      {/* ── Service health row ── */}
+      {/* ── Healthcheck result (shown only after running) ── */}
+      {healthcheck && (
+        <div className={`hc-banner ${healthcheck.status === 'healthy' ? 'hc-ok' : 'hc-warn'}`}>
+          <div className="hc-banner-title">
+            <span>{healthcheck.status === 'healthy' ? '✓' : '⚠'}</span>
+            System {healthcheck.status === 'healthy' ? 'Healthy' : 'Degraded'}
+            <span className="hc-ts">{new Date(healthcheck.timestamp).toLocaleTimeString()}</span>
+          </div>
+          <div className="hc-checks">
+            {Object.entries(healthcheck.checks || {}).map(([name, check]) => (
+              <div key={name} className={`hc-check ${check.ok ? 'hc-check-ok' : 'hc-check-fail'}`}>
+                <span className="hc-check-dot">{check.ok ? '●' : '○'}</span>
+                <span className="hc-check-name">{name}</span>
+                {!check.ok && <span className="hc-check-err">{check.error}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Service health cards ── */}
       <div className="status-grid">
         <StatusCard title="Server"       status={serverOnline ? 'online' : 'offline'} icon="⚙" detail={serverOnline ? 'Healthy' : 'Unreachable'} />
-        <StatusCard title="OpenRouter"   status={diagLoading ? 'loading' : or?.status === 'ok' ? 'online' : 'offline'} icon="🌐" detail={diagLoading ? 'Checking…' : or?.status === 'ok' ? `${or.availableModels ?? '?'} models available` : or?.error ?? 'Not connected'} />
-        <StatusCard title="Embeddings"   status={diagLoading ? 'loading' : ollama?.status === 'ok' ? 'online' : 'offline'} icon="🧠" detail={diagLoading ? 'Checking…' : ollama?.status === 'ok' ? `nomic-embed-text ${ollama.embedModelReady ? '✓' : '✗'}` : ollama?.error ?? 'Not connected'} />
+        <StatusCard title="OpenRouter"   status={diagLoading ? 'loading' : or?.status === 'ok' ? 'online' : 'offline'} icon="🌐"
+          detail={diagLoading ? 'Checking…' : or?.status === 'ok' ? 'Connected' : or?.error ?? 'Not connected'} />
+        <StatusCard title="Embeddings"   status={diagLoading ? 'loading' : ollama?.status === 'ok' ? 'online' : 'offline'} icon="🧠"
+          detail={diagLoading ? 'Checking…' : ollama?.embedModelReady ? 'nomic-embed-text ✓' : 'Model not loaded'} />
         <StatusCard title="Vector Store" status={vs && !vs.error ? 'online' : 'offline'} icon="🗄" detail={`${vs?.totalChunks ?? 0} chunks indexed`} />
         <StatusCard title="Cache"        status={cache ? 'online' : 'unknown'} icon="⚡" detail={cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
         <StatusCard title="Queue"        status={q ? 'online' : 'unknown'} icon="⏱" detail={q ? `${q.waiting}w · ${q.active}a · ${q.completed}✓` : 'Unavailable'} />
       </div>
 
-      {/* ── Live LLM Switcher ── */}
-      <div className="sp-section">
+      {/* ── Active Model Card ── */}
+      <div className="sp-section model-info-section">
         <div className="sp-section-header">
           <div className="sp-section-title">
             <span className="sp-section-icon">🤖</span>
-            Language Model
-            <span className="sp-live-badge">LIVE SWITCH</span>
+            Active Language Model
           </div>
-          <div className="sp-current-model">
-            <span className="sp-current-label">Active:</span>
-            <span className="sp-current-name">{current || '—'}</span>
-            {current.includes(':free') && <span className="sp-free-tag">FREE</span>}
-          </div>
+          {tu && (
+            <button className="btn btn-ghost btn-xs" onClick={resetUsage} disabled={resettingUsage}>
+              {resettingUsage ? <span className="spinner-xs" /> : '↺'} Reset Stats
+            </button>
+          )}
         </div>
 
-        <div className="model-switcher">
-          {mergedModels.map(m => {
-            const isActive   = m.id === current;
-            const isSwitching = switching === m.id;
-            return (
-              <button
-                key={m.id}
-                className={`model-card ${isActive ? 'model-card-active' : ''} ${!m.available ? 'model-card-unavailable' : ''}`}
-                onClick={() => handleSwitch(m.id)}
-                disabled={isActive || isSwitching || !!switching}
-                title={m.id}
-              >
-                <div className="mc-top">
-                  <span className="mc-name">{m.name}</span>
-                  {isActive && <span className="mc-active-dot" />}
-                  {isSwitching && <span className="mc-spinner" />}
+        <div className="model-info-grid">
+          {/* Model identity */}
+          <div className="mi-card mi-card-main">
+            <div className="mi-label">LLM</div>
+            <div className="mi-model-name">{model}</div>
+            {model.includes(':free') && <span className="mi-free-badge">FREE TIER</span>}
+            <div className="mi-sub">via OpenRouter · {or?.status === 'ok' ? '🟢 Connected' : '🔴 Disconnected'}</div>
+            <div className="mi-divider" />
+            <div className="mi-label">Embedding</div>
+            <div className="mi-embed-name">{embedModel}</div>
+            <div className="mi-sub">Local · Ollama · {ollama?.embedModelReady ? '🟢 Ready' : '🔴 Not loaded'}</div>
+          </div>
+
+          {/* Token consumption */}
+          <div className="mi-card">
+            <div className="mi-label">Session Token Usage</div>
+            <div className="mi-stat-row">
+              <div className="mi-stat">
+                <div className="mi-stat-val">{(tu?.totalTokens ?? 0).toLocaleString()}</div>
+                <div className="mi-stat-label">Total Tokens</div>
+              </div>
+              <div className="mi-stat">
+                <div className="mi-stat-val">{(tu?.totalPromptTokens ?? 0).toLocaleString()}</div>
+                <div className="mi-stat-label">Prompt</div>
+              </div>
+              <div className="mi-stat">
+                <div className="mi-stat-val">{(tu?.totalCompletionTokens ?? 0).toLocaleString()}</div>
+                <div className="mi-stat-label">Completion</div>
+              </div>
+            </div>
+            <div className="mi-divider" />
+            <div className="mi-stat-row">
+              <div className="mi-stat">
+                <div className="mi-stat-val">{tu?.queryCount ?? 0}</div>
+                <div className="mi-stat-label">Queries</div>
+              </div>
+              <div className="mi-stat">
+                <div className="mi-stat-val accent-warn">${estimatedCost}</div>
+                <div className="mi-stat-label">Est. Cost</div>
+              </div>
+              <div className="mi-stat">
+                <div className="mi-stat-val">
+                  {tu?.queryCount ? Math.round(tu.totalTokens / tu.queryCount) : 0}
                 </div>
-                <div className="mc-note">{m.note}</div>
-                <div className="mc-id">{m.id.split('/').pop()}</div>
-                {isActive && <div className="mc-glow" />}
-              </button>
-            );
-          })}
-        </div>
+                <div className="mi-stat-label">Avg / Query</div>
+              </div>
+            </div>
+            {tu?.sessionStart && (
+              <div className="mi-since">Since {new Date(tu.sessionStart).toLocaleString()}</div>
+            )}
+          </div>
 
-        <div className="model-change-note">
-          Click any card to switch the active model instantly — no restart required.
-          Changes persist until the server restarts. To make permanent, update <code>OPENROUTER_MODEL</code> in <code>.env</code>.
+          {/* Per-model breakdown */}
+          {tu?.byModel && Object.keys(tu.byModel).length > 0 && (
+            <div className="mi-card mi-card-full">
+              <div className="mi-label">Usage by Model</div>
+              <div className="mi-model-table">
+                <div className="mi-model-table-head">
+                  <span>Model</span><span>Queries</span><span>Tokens</span><span>Prompt</span><span>Completion</span>
+                </div>
+                {Object.entries(tu.byModel).map(([mid, stats]) => (
+                  <div key={mid} className="mi-model-row">
+                    <span className="mi-model-id">{mid.split('/').pop()}</span>
+                    <span>{stats.queries}</span>
+                    <span>{stats.total.toLocaleString()}</span>
+                    <span>{stats.prompt.toLocaleString()}</span>
+                    <span>{stats.completion.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -182,16 +244,10 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
             <span className="embed-label">Host</span>
             <span className="embed-value">{diagnostics?.ollama?.host || 'ollama:11434'}</span>
           </div>
-          {ollama?.status === 'ok' && (ollama?.models || []).length > 0 && (
+          {ollama?.models?.length > 0 && (
             <div className="embed-row">
               <span className="embed-label">Loaded</span>
-              <span className="embed-value">{(ollama.models || []).join(', ')}</span>
-            </div>
-          )}
-          {ollama?.status !== 'ok' && (
-            <div className="embed-warn">
-              Ollama unreachable. Ensure the container is running:<br />
-              <code>docker logs mnemosyne-ollama</code>
+              <span className="embed-value">{ollama.models.join(', ')}</span>
             </div>
           )}
         </div>
@@ -210,11 +266,11 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
         </div>
       )}
 
-      {/* ── Query debug ── */}
+      {/* ── Similarity debug ── */}
       <div className="sp-section">
         <div className="sp-section-title"><span className="sp-section-icon">🔍</span>Similarity Debug</div>
         <div className="debug-desc">
-          Test any query to see raw similarity scores. If all scores are below <code>{info?.minRelevanceScore ?? '0.15'}</code>, no results are returned.
+          Test any query to see raw similarity scores. Scores below <code>{info?.minRelevanceScore ?? '0.15'}</code> are filtered out.
         </div>
         <form className="debug-form" onSubmit={runDebug}>
           <input className="debug-input" value={debugQ} onChange={e => setDebugQ(e.target.value)} placeholder="Enter a test query…" />
@@ -262,27 +318,41 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
         </div>
       </div>
 
-      {/* ── API reference ── */}
-      <div className="sp-section">
-        <div className="sp-section-title"><span className="sp-section-icon">📡</span>REST API</div>
+      {/* ── API Documentation ── */}
+      <div className="sp-section sp-section-docs">
+        <div className="sp-section-header">
+          <div className="sp-section-title"><span className="sp-section-icon">📡</span>API Documentation</div>
+          <a href="http://localhost:3001/docs" target="_blank" rel="noreferrer" className="btn btn-primary btn-xs">
+            Open Swagger UI ↗
+          </a>
+        </div>
         <div className="auth-note">
           All endpoints require auth except <code>/health</code> and <code>POST /api/auth/login</code>.<br />
-          <code>X-API-Key: &lt;RAG_API_KEY&gt;</code> for bots · <code>X-Session-Token: &lt;token&gt;</code> for UI
+          <code>X-API-Key: &lt;RAG_API_KEY&gt;</code> for bots &nbsp;·&nbsp; <code>X-Session-Token: &lt;token&gt;</code> for UI
         </div>
         <div className="api-table">
           {[
-            ['POST',   '/api/auth/login',             'Get session token'],
-            ['POST',   '/api/query',                  'Sync RAG query'],
-            ['GET',    '/api/query/debug?q=…',        'Raw similarity scores'],
-            ['GET',    '/api/models',                 'List available models'],
-            ['POST',   '/api/models/switch',          'Switch LLM live'],
-            ['POST',   '/api/documents/upload',       'Upload document'],
-            ['GET',    '/api/documents',              'List documents'],
-            ['GET',    '/api/diagnostics',            'Full health check'],
-            ['POST',   '/api/vector-store/reset',     'Wipe collection'],
-            ['DELETE', '/api/cache',                  'Clear query cache'],
+            ['POST',   '/api/auth/login',              'Login — get session token'],
+            ['POST',   '/api/query',                   'Sync RAG query (API Key or Session)'],
+            ['GET',    '/api/query/debug?q=…',         'Raw similarity scores — no LLM'],
+            ['GET',    '/api/query/test',              'Step-by-step pipeline test'],
+            ['POST',   '/api/documents/upload',        'Upload document to knowledge base'],
+            ['GET',    '/api/documents',               'List indexed documents'],
+            ['DELETE', '/api/documents/:id',           'Remove a document'],
+            ['GET',    '/api/models',                  'List available models'],
+            ['POST',   '/api/models/switch',           'Switch LLM live (no restart)'],
+            ['GET',    '/api/usage',                   'Token usage & model stats'],
+            ['DELETE', '/api/usage',                   'Reset token usage stats'],
+            ['GET',    '/api/healthcheck',             'Full system healthcheck'],
+            ['GET',    '/api/settings',                'Get current configuration'],
+            ['PUT',    '/api/settings',                'Update settings (key, model, tuning)'],
+            ['POST',   '/api/settings/test-key',       'Test OpenRouter API key'],
+            ['GET',    '/api/diagnostics',             'Deep connectivity check'],
+            ['DELETE', '/api/cache',                   'Clear query cache'],
+            ['POST',   '/api/vector-store/reset',      'Wipe vector store collection'],
+            ['GET',    '/health',                      'Public health check (no auth)'],
           ].map(([method, path, desc]) => (
-            <div key={path+method} className="api-row">
+            <div key={path + method} className="api-row">
               <span className={`method method-${method.toLowerCase()}`}>{method}</span>
               <code className="api-path">{path}</code>
               <span className="api-desc">{desc}</span>

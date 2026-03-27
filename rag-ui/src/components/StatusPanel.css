@@ -201,3 +201,105 @@
   .api-path { min-width: 0; }
   .api-desc { display: none; }
 }
+
+/* ── Header actions ── */
+.sp-header-actions { display: flex; gap: 8px; align-items: center; }
+
+/* ── Healthcheck banner ── */
+.hc-banner {
+  border-radius: var(--radius-lg); padding: 14px 18px;
+  display: flex; flex-direction: column; gap: 10px;
+  border: 1px solid;
+}
+.hc-ok   { background: rgba(61,255,160,0.05); border-color: rgba(61,255,160,0.2); }
+.hc-warn { background: rgba(255,180,84,0.05); border-color: rgba(255,180,84,0.2); }
+
+.hc-banner-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700;
+  color: var(--text);
+}
+.hc-ok   .hc-banner-title { color: var(--success); }
+.hc-warn .hc-banner-title { color: var(--warn); }
+.hc-ts { font-size: 11px; color: var(--text3); font-family: var(--mono); font-weight: 400; margin-left: auto; }
+
+.hc-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.hc-check {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px; font-size: 11px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+}
+.hc-check-ok   .hc-check-dot { color: var(--success); }
+.hc-check-fail .hc-check-dot { color: var(--danger); }
+.hc-check-name { color: var(--text2); font-weight: 500; }
+.hc-check-err  { color: var(--danger); font-size: 10px; font-family: var(--mono); }
+
+/* ── Model info card ── */
+.model-info-section { border-color: rgba(124,92,252,0.2); }
+
+.model-info-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 12px;
+}
+.mi-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.mi-card-main { border-color: rgba(124,92,252,0.2); background: rgba(124,92,252,0.04); }
+.mi-card-full { grid-column: 1 / -1; }
+
+.mi-label {
+  font-size: 10px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 1.2px;
+}
+.mi-model-name {
+  font-family: var(--mono); font-size: 13px; font-weight: 600;
+  color: var(--accent); word-break: break-all; line-height: 1.4;
+}
+.mi-embed-name { font-family: var(--mono); font-size: 12px; color: var(--accent2); }
+.mi-free-badge {
+  display: inline-flex; align-self: flex-start;
+  padding: 2px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+  background: rgba(61,255,160,0.1); color: var(--success); border: 1px solid rgba(61,255,160,0.2);
+}
+.mi-sub  { font-size: 11px; color: var(--text3); }
+.mi-divider { height: 1px; background: var(--border); margin: 6px 0; }
+.mi-since { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-top: 4px; }
+
+.mi-stat-row { display: flex; gap: 0; }
+.mi-stat {
+  flex: 1; text-align: center; padding: 8px 4px;
+  border-right: 1px solid var(--border);
+}
+.mi-stat:last-child { border-right: none; }
+.mi-stat-val   { font-family: var(--mono); font-size: 18px; font-weight: 600; color: var(--text); line-height: 1; margin-bottom: 4px; }
+.mi-stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; }
+.accent-warn   { color: var(--warn) !important; }
+
+/* Per-model table */
+.mi-model-table { display: flex; flex-direction: column; gap: 2px; }
+.mi-model-table-head {
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  padding: 6px 10px; font-size: 10px; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.mi-model-row {
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  padding: 7px 10px; font-size: 12px; color: var(--text2);
+  border-radius: var(--radius); transition: background 0.1s;
+}
+.mi-model-row:hover { background: rgba(255,255,255,0.03); }
+.mi-model-id { font-family: var(--mono); color: var(--accent); font-size: 11px; }
+
+/* ── Docs section ── */
+.sp-section-docs { border-color: rgba(0,212,255,0.15); }
+
+@media (max-width: 900px) {
+  .model-info-grid { grid-template-columns: 1fr; }
+  .mi-card-full    { grid-column: 1; }
+}
