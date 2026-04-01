@@ -412,7 +412,7 @@
 /* Input */
 .query-form { display: flex; flex-direction: column; gap: 7px; }
 .input-wrapper {
-  display: flex; align-items: flex-end; gap: 10px;
+  display: flex; align-items: flex-start; gap: 10px;
   background: rgba(13,18,32,0.8); backdrop-filter: blur(20px);
   border: 1px solid var(--border2); border-radius: var(--radius-xl);
   padding: 12px 14px; transition: all 0.2s;

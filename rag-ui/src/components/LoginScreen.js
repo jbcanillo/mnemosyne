@@ -39,7 +39,10 @@ export default function LoginScreen() {
       <div className="login-card">
         {/* Header */}
         <div className="login-header">
-          <div className="login-logo">Mnemosyne</div>
+          <div className="login-logo">
+            <img src="/logo.svg" alt="Mnemosyne Logo" className="logo-img" />
+          </div>
+          <div className="login-title">Mnemosyne</div>
           <div className="login-subtitle">RAG Knowledge Base</div>
           
         </div>

@@ -288,7 +288,7 @@ export default function SettingsPanel({ onRefresh }) {
               {saving ? <span className="spinner-xs" /> : <Save size={14} />} Save Key
             </button>
             {keyIsSet && (
-              <button className="btn btn-warning" type="button" onClick={testKey} disabled={testing}>
+              <button className="btn btn-info" type="button" onClick={testKey} disabled={testing}>
                 {testing ? <span className="spinner-xs" /> : <Zap size={14} />} Test Connection
               </button>
             )}
@@ -358,7 +358,7 @@ export default function SettingsPanel({ onRefresh }) {
             </div>
           </div>
 
-          <button className="btn btn-primary btn-sm" type="submit" disabled={saving} style={{ width: 'auto', alignSelf: 'flex-start' }}>
+          <button className="btn btn-primary" type="submit" disabled={saving} style={{ width: 'auto', alignSelf: 'flex-start' }}>
             {saving ? <span className="spinner-xs" /> : <Save size={14} />} Save Settings
           </button>
         </form>
@@ -461,7 +461,7 @@ export default function SettingsPanel({ onRefresh }) {
             <div className="mgmt-card-title"><Download size={14} /> Backup & Restore</div>
             <div className="mgmt-card-detail">Knowledge base backup and restore</div>
             <div className="mgmt-actions">
-              <button className="btn btn-primary btn-xs" onClick={createBackup} disabled={backupProgress || restoring}>
+              <button className="btn btn-primary" onClick={createBackup} disabled={backupProgress || restoring}>
                 {backupProgress ? 'Creating...' : <><Download size={12} /> Create Backup</>}
               </button>
             </div>
@@ -474,7 +474,7 @@ export default function SettingsPanel({ onRefresh }) {
                       <div className="backup-name">{b.filename}</div>
                       <div className="backup-meta">{(b.size / 1024 / 1024).toFixed(1)} MB · {new Date(b.created).toLocaleString()}</div>
                     </div>
-                    <button className="btn btn-warning btn-xs" onClick={() => restoreBackup(b.filename)} disabled={restoring}>
+                    <button className="btn btn-info btn-xs" onClick={() => restoreBackup(b.filename)} disabled={restoring}>
                       {restoring ? 'Restoring…' : <><Upload size={12} /> Restore</>}
                     </button>
                   </div>
