@@ -83,11 +83,13 @@ services:
       - rag-net
 
   # ── Redis: Cache + Queue backend ──────────────────────────────────
+  # Note: --save "900 1" = RDB snapshot every 900s or after 1 key change
+  #       Persist job queue across restarts, but cache can be ephemeral.
   redis:
     image: redis:7-alpine
     container_name: mnemosyne-redis
     restart: unless-stopped
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save ""
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save "900 1"
     volumes:
       - redis_data:/data
     ports:
@@ -103,8 +105,8 @@ services:
   # ── RAG Server: Authenticated REST API ────────────────────────────
   rag-server:
     build:
-      context: ./rag-server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./rag-server/Dockerfile
     container_name: mnemosyne-rag-server
     restart: unless-stopped
     depends_on:

@@ -135,7 +135,7 @@ exports.query = async (req, res) => {
     logger.error('[Query] Error:', msg);
     if (err?.stack) logger.error('[Query] Stack:', err.stack.split('\n').slice(0,3).join(' | '));
     return res.status(500).json({
-      error: 'Query processing failed',
+      error: 'Query processing failed. Please try again.',
       message: msg,
       step: err?.step || 'unknown'
     });

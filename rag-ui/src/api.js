@@ -82,6 +82,9 @@ export const ragApi = {
   getDiagnostics: () => api.get('/diagnostics'),
   getModels:      () => api.get('/models'),
   switchModel:    (modelId) => api.post('/models/switch', { modelId }),
+  addModel:       (id, name) => api.post('/models', { id, name }),
+  deleteModel:    (modelId) => api.delete(`/models/${modelId}`),
+  resetModels:    () => api.post('/models/reset'),
   clearCache:     () => api.delete('/cache'),
   resetVectorStore: () => api.post('/vector-store/reset'),
 
@@ -96,6 +99,21 @@ export const ragApi = {
   testApiKey:     () => api.post('/settings/test-key'),
   debugQuery:     (q) => api.get(`/query/debug?q=${encodeURIComponent(q)}`),
   health:         () => axios.get(`${BASE_URL.replace('/api', '')}/health`).then(r => r.data),
+
+  // ── Backup & Restore ───────────────────────────────────────────
+  createBackup:   () => api.post('/backup/create'),
+  listBackups:    () => api.get('/backup/list'),
+  restoreBackup:  (filename) => api.post('/backup/restore', { filename }),
+
+  // ── Sessions / Conversations ───────────────────────────────────
+  createSession:  (title) => api.post('/sessions', { title }),
+  getSessions:    () => api.get('/sessions'),
+  getSession:     (sessionId, limit = 50, offset = 0) => 
+    api.get(`/sessions/${sessionId}?limit=${limit}&offset=${offset}`),
+  addMessage:     (sessionId, message) => api.post(`/sessions/${sessionId}/messages`, message),
+  updateSession:  (sessionId, title) => api.put(`/sessions/${sessionId}`, { title }),
+  deleteSession:  (sessionId) => api.delete(`/sessions/${sessionId}`),
+  clearSession:   (sessionId) => api.post(`/sessions/${sessionId}/clear`),
 };
 
 export default ragApi;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
+import { HeartPulse, Globe, Database, Zap, Clock, FolderOpen, Search, RefreshCw, Trash2, Download, Upload, Shield, FileText, Activity, Terminal } from 'lucide-react';
 import { ragApi } from '../api';
 import './StatusPanel.css';
 
@@ -15,6 +16,13 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
   const [debugQ,       setDebugQ]       = useState('');
   const [debugResult,  setDebugResult]  = useState(null);
   const [debugLoading, setDebugLoading] = useState(false);
+  const [backupsLoading, setBackupsLoading] = useState(false);
+  const [backups,      setBackups]      = useState([]);
+  const [backupProgress, setBackupProgress] = useState(null);
+  const [restoring,    setRestoring]    = useState(false);
+  const [logs,         setLogs]         = useState([]);
+  const [logsLoading,  setLogsLoading]  = useState(false);
+  const [logsError,    setLogsError]    = useState(null);
 
   const loadAll = useCallback(async () => {
     setDiagLoading(true);
@@ -25,6 +33,11 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
       ]);
       setDiagnostics(d);
       setUsage(u);
+      // Auto-load backups
+      try {
+        const r = await ragApi.listBackups();
+        setBackups(r.backups || []);
+      } catch (_) { /* backups optional */ }
     } catch (err) {
       toast.error('Failed to load status: ' + err.message);
     } finally {
@@ -78,6 +91,62 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
     finally { setDebugLoading(false); }
   }
 
+  async function loadBackups() {
+    setBackupsLoading(true);
+    try {
+      const r = await ragApi.listBackups();
+      setBackups(r.backups || []);
+    } catch (err) {
+      toast.error('Failed to load backups: ' + err.message);
+    } finally {
+      setBackupsLoading(false);
+    }
+  }
+
+  async function createBackup() {
+    if (!window.confirm('Create a backup of knowledge base and config?')) return;
+    setBackupProgress('Starting...');
+    try {
+      const r = await ragApi.createBackup();
+      toast.success(`Backup created: ${r.filename} (${r.size} MB)`);
+      await loadBackups();
+      setBackupProgress(null);
+    } catch (err) {
+      toast.error('Backup failed: ' + err.message);
+      setBackupProgress(null);
+    }
+  }
+
+  async function restoreBackup(filename) {
+    if (!window.confirm(`Restore from ${filename}? This will replace your current knowledge base!`)) return;
+    setRestoring(true);
+    try {
+      await ragApi.restoreBackup(filename);
+      toast.success('Restore complete! System restarting...');
+      setTimeout(() => window.location.reload(), 3000);
+    } catch (err) {
+      toast.error('Restore failed: ' + err.message);
+      setRestoring(false);
+    }
+  }
+
+  async function loadLogs() {
+    setLogsLoading(true);
+    setLogsError(null);
+    try {
+      const r = await ragApi.getDiagnostics();
+      if (r && r.logs && Array.isArray(r.logs)) {
+        setLogs(r.logs);
+      } else {
+        setLogs([]);
+      }
+    } catch (err) {
+      setLogsError(err.message);
+    } finally {
+      setLogsLoading(false);
+    }
+  }
+
   const q      = info?.queue?.queryQueue;
   const vs     = info?.vectorStore;
   const cache  = info?.cache;
@@ -85,7 +154,6 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
   const ollama = diagnostics?.ollama;
   const tu     = usage?.tokenUsage;
   const model  = usage?.currentModel || info?.models?.llm || '—';
-  const embedModel = usage?.embeddingModel || 'nomic-embed-text';
 
   // Cost estimate: ~$0.0005 per 1K tokens (rough average for free models)
   const estimatedCost = tu ? ((tu.totalTokens / 1000) * 0.0005).toFixed(4) : '0.0000';
@@ -93,13 +161,15 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
   return (
     <div className="status-panel">
       <div className="sp-header">
-        <div className="panel-title">System Status</div>
         <div className="sp-header-actions">
           <button className="btn btn-ghost btn-xs" onClick={runHealthcheck} disabled={hcLoading}>
-            {hcLoading ? <span className="spinner-xs" /> : '🩺'} Healthcheck
+            {hcLoading ? <span className="spinner-xs" /> : <HeartPulse size={12} />} Healthcheck
           </button>
+          <a href="http://localhost:3001/docs" target="_blank" rel="noreferrer" className="btn btn-ghost btn-xs">
+            API Docs
+          </a>
           <button className="btn btn-ghost btn-xs" onClick={loadAll} disabled={diagLoading}>
-            {diagLoading ? <span className="spinner-xs" /> : '↻'} Refresh
+            {diagLoading ? <span className="spinner-xs" /> : <RefreshCw size={12} />} Refresh
           </button>
         </div>
       </div>
@@ -126,26 +196,24 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
 
       {/* ── Service health cards ── */}
       <div className="status-grid">
-        <StatusCard title="Server"       status={serverOnline ? 'online' : 'offline'} icon="⚙" detail={serverOnline ? 'Healthy' : 'Unreachable'} />
-        <StatusCard title="OpenRouter"   status={diagLoading ? 'loading' : or?.status === 'ok' ? 'online' : 'offline'} icon="🌐"
+        <StatusCard title="Server"       status={serverOnline ? 'online' : 'offline'} icon={<Activity size={15} />} detail={serverOnline ? 'Healthy' : 'Unreachable'} />
+        <StatusCard title="OpenRouter"   status={diagLoading ? 'loading' : or?.status === 'ok' ? 'online' : 'offline'} icon={<Globe size={15} />}
           detail={diagLoading ? 'Checking…' : or?.status === 'ok' ? 'Connected' : or?.error ?? 'Not connected'} />
-        <StatusCard title="Embeddings"   status={diagLoading ? 'loading' : ollama?.status === 'ok' ? 'online' : 'offline'} icon="🧠"
-          detail={diagLoading ? 'Checking…' : ollama?.embedModelReady ? 'nomic-embed-text ✓' : 'Model not loaded'} />
-        <StatusCard title="Vector Store" status={vs && !vs.error ? 'online' : 'offline'} icon="🗄" detail={`${vs?.totalChunks ?? 0} chunks indexed`} />
-        <StatusCard title="Cache"        status={cache ? 'online' : 'unknown'} icon="⚡" detail={cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
-        <StatusCard title="Queue"        status={q ? 'online' : 'unknown'} icon="⏱" detail={q ? `${q.waiting}w · ${q.active}a · ${q.completed}✓` : 'Unavailable'} />
+        <StatusCard title="Vector Store" status={vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={`${vs?.totalChunks ?? 0} chunks indexed`} />
+        <StatusCard title="Cache"        status={cache ? 'online' : 'unknown'} icon={<Zap size={15} />} detail={cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
+        <StatusCard title="Queue"        status={q ? 'online' : 'unknown'} icon={<Clock size={15} />} detail={q ? `${q.waiting}w · ${q.active}a · ${q.completed} done` : 'Unavailable'} />
       </div>
 
       {/* ── Active Model Card ── */}
       <div className="sp-section model-info-section">
         <div className="sp-section-header">
           <div className="sp-section-title">
-            <span className="sp-section-icon">🤖</span>
+            <span className="sp-section-icon"><HeartPulse size={14} /></span>
             Active Language Model
           </div>
           {tu && (
             <button className="btn btn-ghost btn-xs" onClick={resetUsage} disabled={resettingUsage}>
-              {resettingUsage ? <span className="spinner-xs" /> : '↺'} Reset Stats
+              {resettingUsage ? <span className="spinner-xs" /> : <RefreshCw size={12} />} Reset Stats
             </button>
           )}
         </div>
@@ -155,12 +223,11 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
           <div className="mi-card mi-card-main">
             <div className="mi-label">LLM</div>
             <div className="mi-model-name">{model}</div>
-            {model.includes(':free') && <span className="mi-free-badge">FREE TIER</span>}
-            <div className="mi-sub">via OpenRouter · {or?.status === 'ok' ? '🟢 Connected' : '🔴 Disconnected'}</div>
+            <div className="mi-sub">via OpenRouter · {or?.status === 'ok' ? 'Connected' : 'Disconnected'}</div>
             <div className="mi-divider" />
             <div className="mi-label">Embedding</div>
-            <div className="mi-embed-name">{embedModel}</div>
-            <div className="mi-sub">Local · Ollama · {ollama?.embedModelReady ? '🟢 Ready' : '🔴 Not loaded'}</div>
+            <div className="mi-embed-name">nomic-embed-text</div>
+            <div className="mi-sub">Local · Ollama · {ollama?.status === 'ok' ? 'Connected' : 'Disconnected'}</div>
           </div>
 
           {/* Token consumption */}
@@ -225,38 +292,10 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
         </div>
       </div>
 
-      {/* ── Embedding model info ── */}
-      <div className="sp-section">
-        <div className="sp-section-title">
-          <span className="sp-section-icon">🧠</span>
-          Embedding Model
-          <span className="sp-local-tag">LOCAL · OLLAMA</span>
-        </div>
-        <div className="embed-info">
-          <div className="embed-row">
-            <span className="embed-label">Model</span>
-            <span className="embed-value">nomic-embed-text</span>
-            <span className={`embed-status ${ollama?.embedModelReady ? 'es-ok' : 'es-err'}`}>
-              {ollama?.embedModelReady ? '● Ready' : '● Not loaded'}
-            </span>
-          </div>
-          <div className="embed-row">
-            <span className="embed-label">Host</span>
-            <span className="embed-value">{diagnostics?.ollama?.host || 'ollama:11434'}</span>
-          </div>
-          {ollama?.models?.length > 0 && (
-            <div className="embed-row">
-              <span className="embed-label">Loaded</span>
-              <span className="embed-value">{ollama.models.join(', ')}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* ── Queue metrics ── */}
       {q && (
         <div className="sp-section">
-          <div className="sp-section-title"><span className="sp-section-icon">⏱</span>Queue Metrics</div>
+          <div className="sp-section-title"><span className="sp-section-icon"><Clock size={14} /></span>Queue Metrics</div>
           <div className="metrics-row">
             <Metric label="Waiting"   value={q.waiting}   color="warn" />
             <Metric label="Active"    value={q.active}    color="accent2" />
@@ -268,7 +307,7 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
 
       {/* ── Similarity debug ── */}
       <div className="sp-section">
-        <div className="sp-section-title"><span className="sp-section-icon">🔍</span>Similarity Debug</div>
+        <div className="sp-section-title"><span className="sp-section-icon"><Search size={14} /></span>Similarity Debug</div>
         <div className="debug-desc">
           Test any query to see raw similarity scores. Scores below <code>{info?.minRelevanceScore ?? '0.15'}</code> are filtered out.
         </div>
@@ -288,7 +327,7 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
               {debugResult.chunks?.map((c, i) => (
                 <div key={i} className={`debug-chunk ${c.relevanceScore >= (debugResult.currentThreshold ?? 0.15) ? 'dc-pass' : 'dc-fail'}`}>
                   <div className="dc-header">
-                    <span className="dc-file">📄 {c.filename}</span>
+                    <span className="dc-file"><FileText size={12} /> {c.filename}</span>
                     <span className="dc-chunk">chunk {c.chunkIndex}</span>
                     <span className="dc-score">{c.relevanceScore.toFixed(4)} {c.relevanceScore >= (debugResult.currentThreshold ?? 0.15) ? '✓' : '✗'}</span>
                   </div>
@@ -301,65 +340,35 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
         )}
       </div>
 
-      {/* ── Data management ── */}
+      {/* ── Live Log Viewer ── */}
       <div className="sp-section">
-        <div className="sp-section-title"><span className="sp-section-icon">🗂</span>Data Management</div>
-        <div className="mgmt-grid">
-          <div className="mgmt-card">
-            <div className="mgmt-card-title">Query Cache</div>
-            <div className="mgmt-card-detail">{cache?.entries ?? 0} cached results · {cache?.backend ?? '—'} · TTL {cache?.ttl ?? '—'}s</div>
-            <button className="btn btn-ghost btn-xs" onClick={clearCache} disabled={clearing}>{clearing ? 'Clearing…' : '🗑 Clear Cache'}</button>
-          </div>
-          <div className="mgmt-card">
-            <div className="mgmt-card-title">Vector Store</div>
-            <div className="mgmt-card-detail">{vs?.totalChunks ?? 0} chunks · {vs?.collection ?? 'sofia_rag_knowledge'}</div>
-            <button className="btn btn-danger btn-xs" onClick={resetVectorStore} disabled={resetting}>{resetting ? 'Resetting…' : '⚠ Reset Collection'}</button>
-          </div>
+        <div className="sp-section-header">
+          <div className="sp-section-title"><span className="sp-section-icon"><Terminal size={14} /></span>Live Log Viewer</div>
+          <button className="btn btn-ghost btn-xs" onClick={loadLogs} disabled={logsLoading}>
+            {logsLoading ? <span className="spinner-xs" /> : <RefreshCw size={12} />} Refresh
+          </button>
+        </div>
+        <div className="log-viewer">
+          {logsLoading ? (
+            <div className="log-empty">Loading logs…</div>
+          ) : logsError ? (
+            <div className="log-error">Error loading logs: {logsError}</div>
+          ) : logs.length === 0 ? (
+            <div className="log-empty">No logs available. View server logs with: <code>docker logs mnemosyne-rag-server</code></div>
+          ) : (
+            <div className="log-entries">
+              {logs.map((log, i) => (
+                <div key={i} className={`log-entry log-${log.level || 'info'}`}>
+                  <span className="log-time">{log.timestamp || ''}</span>
+                  <span className="log-level">{(log.level || 'info').toUpperCase()}</span>
+                  <span className="log-message">{log.message || log}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── API Documentation ── */}
-      <div className="sp-section sp-section-docs">
-        <div className="sp-section-header">
-          <div className="sp-section-title"><span className="sp-section-icon">📡</span>API Documentation</div>
-          <a href="http://localhost:3001/docs" target="_blank" rel="noreferrer" className="btn btn-primary btn-xs">
-            Open Swagger UI ↗
-          </a>
-        </div>
-        <div className="auth-note">
-          All endpoints require auth except <code>/health</code> and <code>POST /api/auth/login</code>.<br />
-          <code>X-API-Key: &lt;RAG_API_KEY&gt;</code> for bots &nbsp;·&nbsp; <code>X-Session-Token: &lt;token&gt;</code> for UI
-        </div>
-        <div className="api-table">
-          {[
-            ['POST',   '/api/auth/login',              'Login — get session token'],
-            ['POST',   '/api/query',                   'Sync RAG query (API Key or Session)'],
-            ['GET',    '/api/query/debug?q=…',         'Raw similarity scores — no LLM'],
-            ['GET',    '/api/query/test',              'Step-by-step pipeline test'],
-            ['POST',   '/api/documents/upload',        'Upload document to knowledge base'],
-            ['GET',    '/api/documents',               'List indexed documents'],
-            ['DELETE', '/api/documents/:id',           'Remove a document'],
-            ['GET',    '/api/models',                  'List available models'],
-            ['POST',   '/api/models/switch',           'Switch LLM live (no restart)'],
-            ['GET',    '/api/usage',                   'Token usage & model stats'],
-            ['DELETE', '/api/usage',                   'Reset token usage stats'],
-            ['GET',    '/api/healthcheck',             'Full system healthcheck'],
-            ['GET',    '/api/settings',                'Get current configuration'],
-            ['PUT',    '/api/settings',                'Update settings (key, model, tuning)'],
-            ['POST',   '/api/settings/test-key',       'Test OpenRouter API key'],
-            ['GET',    '/api/diagnostics',             'Deep connectivity check'],
-            ['DELETE', '/api/cache',                   'Clear query cache'],
-            ['POST',   '/api/vector-store/reset',      'Wipe vector store collection'],
-            ['GET',    '/health',                      'Public health check (no auth)'],
-          ].map(([method, path, desc]) => (
-            <div key={path + method} className="api-row">
-              <span className={`method method-${method.toLowerCase()}`}>{method}</span>
-              <code className="api-path">{path}</code>
-              <span className="api-desc">{desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

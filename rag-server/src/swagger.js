@@ -102,7 +102,7 @@ const options = {
               query:          { type: 'string' }
             } } } } },
             202: { description: 'Async job queued', content: { 'application/json': { schema: { type: 'object', properties: { jobId: { type: 'string' }, status: { type: 'string' } } } } } },
-            500: { description: 'Query processing failed', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Error' } } } }
+            500: { description: 'Query processing failed. Please try again.', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Error' } } } }
           }
         }
       },

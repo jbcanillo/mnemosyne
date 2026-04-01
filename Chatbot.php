@@ -1,7 +1,7 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed');
 
 /**
- * Chatbot Controller — Mnemosyne Viber Bot
+ * Chatbot Controller — SOFIA Viber Bot
  * Integrated with Mnemosyne RAG Server (authenticated via API Key)
  */
 class Chatbot extends CI_Controller
@@ -57,9 +57,9 @@ class Chatbot extends CI_Controller
         }
 
         if ($response['event'] === 'conversation_started') {
-            $msg = "👋 Hi! Welcome to Mnemosyne Chatbot.\n\n"
-                 . "I'm Mnemosyne, your AI knowledge base assistant. "
-                 . "powered by an AI knowledge base of your ERP system.\n\n"
+            $msg = "👋 Hi! Welcome to AV Chatbot.\n\n"
+                 . "I'm SOFIA, your AI assistant. "
+                 . "powered by an RAG knowledge base of your ERP system.\n\n"
                  . "Select an option or just type your question:";
             $this->viber->sendMessage($response['user']['id'], $msg, $this->default_buttons);
             exit;
@@ -81,8 +81,8 @@ class Chatbot extends CI_Controller
                     $menu  = $this->default_buttons;
                     break;
 
-                case $msg_lower === 'ask mnemosyne':
-                    $reply = "🤖 Mnemosyne is ready! Type any question about the knowledge base.\n\nExamples:\n• How do I create a purchase order?\n• What vessels are in the system?\n• How does truck dispatching work?";
+                case $msg_lower === 'ask bot':
+                    $reply = "🤖 SOFIA is ready! Type any question about the knowledge base.\n\nExamples:\n• How do I create a purchase order?\n• What vessels are in the system?\n• How does truck dispatching work?";
                     break;
 
                 case $msg_lower === 'view vessels':
@@ -146,7 +146,7 @@ class Chatbot extends CI_Controller
     // ──────────────────────────────────────────────────────────────
 
     /**
-     * Send a query to the SOFIA RAG server.
+     * Send a query to the RAG server.
      * The X-API-Key header is injected on every request.
      *
      * @param  string $query

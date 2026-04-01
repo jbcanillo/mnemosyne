@@ -107,3 +107,214 @@
 .spinner-xs  { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.2); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin   { to { transform: rotate(360deg); } }
 @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── Model Management ── */
+.active-model-badge {
+  background: linear-gradient(135deg, rgba(124,92,252,0.15) 0%, rgba(124,92,252,0.05) 100%);
+  border: 1px solid rgba(124,92,252,0.3);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.badge-label {
+  font-size: 11px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+}
+
+.badge-model {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.badge-id {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+}
+
+.add-model-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.add-model-form .sp-input {
+  flex: 1;
+  min-width: 150px;
+}
+.add-model-form .btn {
+  flex-shrink: 0;
+}
+
+.models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.model-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(8,12,20,0.4);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-md);
+  gap: 12px;
+}
+
+.model-item.active {
+  background: rgba(124,92,252,0.1);
+  border-color: rgba(124,92,252,0.3);
+}
+
+.model-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(124,92,252,0.2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.model-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.model-id {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.btn-danger {
+  background: rgba(255,80,80,0.15);
+  border: 1px solid rgba(255,80,80,0.3);
+  color: #ff5050;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.btn-danger:hover {
+  background: rgba(255,80,80,0.25);
+  border-color: rgba(255,80,80,0.5);
+}
+
+.btn-danger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Small button variant ── */
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 11px;
+}
+
+/* ── Model active badge (inline in list) ── */
+.model-active-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(124,92,252,0.2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-right: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+
+.model-item.model-active {
+  background: rgba(124,92,252,0.1);
+  border-color: rgba(124,92,252,0.3);
+}
+
+/* ── Empty state ── */
+.models-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text3);
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* ── Model name with badge ── */
+.model-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Mobile Responsive ── */
+@media (max-width: 768px) {
+  .sp-card {
+    padding: 16px;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .add-model-form {
+    flex-direction: column;
+  }
+  .add-model-form .sp-input {
+    width: 100%;
+  }
+  .key-actions {
+    flex-direction: column;
+  }
+  .key-actions .btn {
+    width: 100%;
+  }
+  .model-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .model-item .btn {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .sp-card {
+    padding: 12px;
+  }
+  .sp-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .settings-form {
+    gap: 12px;
+  }
+}
+

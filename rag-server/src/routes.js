@@ -8,6 +8,7 @@ const uploadMiddleware   = require('./middleware/upload');
 const { requireApiKey, requireSession } = require('./middleware/auth');
 const settingsController = require('./controllers/settingsController');
 const { createRateLimiter } = require('./middleware/rateLimiter');
+const modelsService      = require('./services/modelsService');
 
 // ── Auth ─────────────────────────────────────────────────────────────
 const loginRateLimit = createRateLimiter({
@@ -81,7 +82,8 @@ router.get('/query/test', eitherAuth, async (req, res) => {
 
   // Step 4: OpenRouter reachable?
   try {
-    const ping = await llm.openrouter.chat.completions.create({
+    const client = llm._openrouterClient();
+    const ping = await client.chat.completions.create({
       model: llm.currentModel,
       messages: [{ role: 'user', content: 'Reply with the single word: ok' }],
       max_tokens: 5
@@ -218,37 +220,21 @@ router.post('/settings/test-key',requireSession, settingsController.testKey);
 router.get('/models', requireSession, async (req, res) => {
   const llm = require('./services/llmService');
 
-  // Known free models — always returned even if OpenRouter API is unreachable
-  const KNOWN_FREE = [
-    { id: 'stepfun/step-3.5-flash:free',             name: 'Step-3.5 Flash' },
-    { id: 'microsoft/phi-3-mini-128k-instruct:free',  name: 'Phi-3 Mini' },
-    { id: 'meta-llama/llama-3.1-8b-instruct:free',    name: 'Llama 3.1 8B' },
-    { id: 'mistralai/mistral-7b-instruct:free',       name: 'Mistral 7B' },
-    { id: 'google/gemma-2-9b-it:free',                name: 'Gemma 2 9B' },
-    { id: 'qwen/qwen-2-7b-instruct:free',             name: 'Qwen 2 7B' },
-    { id: 'nousresearch/hermes-3-llama-3.1-8b:free',  name: 'Hermes 3' },
-  ];
-
-  let liveModels = [];
   try {
-    const list = await llm.openrouter.models.list();
-    liveModels = (list.data || []).filter(m => m.id.endsWith(':free'));
-  } catch (_) {
-    // OpenRouter list unavailable — fall back to known list
+    // Get configured models from modelsService (Redis-backed)
+    const configuredModels = await modelsService.getAllModels();
+    const currentModel = llm.currentModel;
+
+    // Enrich with active flag
+    const enriched = configuredModels.map(m => ({
+      ...m,
+      active: m.id === currentModel
+    }));
+
+    res.json({ current: currentModel, models: enriched });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  // Merge: prefer live data, fall back to known list
-  const merged = KNOWN_FREE.map(km => {
-    const live = liveModels.find(lm => lm.id === km.id);
-    return {
-      id:            km.id,
-      name:          live?.name || km.name,
-      contextLength: live?.context_length || null,
-      active:        km.id === llm.currentModel
-    };
-  });
-
-  res.json({ current: llm.currentModel, models: merged });
 });
 
 router.post('/models/switch', requireSession, async (req, res) => {
@@ -260,6 +246,159 @@ router.post('/models/switch', requireSession, async (req, res) => {
     res.json({ message: `Switched to ${modelId}`, ...result });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Model CRUD (Session only) ─────────────────────────────────────────
+router.post('/models', requireSession, async (req, res) => {
+  const { id, name } = req.body;
+  if (!id || !name) return res.status(400).json({ error: 'Both id and name are required' });
+  try {
+    const model = await modelsService.addModel(id, name);
+    res.status(201).json({ message: 'Model added', model });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/models/:modelId', requireSession, async (req, res) => {
+  const { modelId } = req.params;
+  try {
+    await modelsService.deleteModel(modelId);
+    res.json({ message: `Model ${modelId} deleted` });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+router.post('/models/reset', requireSession, async (req, res) => {
+  try {
+    await modelsService.reset();
+    const models = await modelsService.getAllModels();
+    res.json({ message: 'All models cleared', models: [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Backup & Restore (Session only) ───────────────────────────────────
+router.post('/backup/create', requireSession, async (req, res) => {
+  try {
+    const backup = require('./services/backupService');
+    const result = await backup.createBackup();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/backup/list', requireSession, async (req, res) => {
+  try {
+    const backup = require('./services/backupService');
+    const backups = await backup.listBackups();
+    res.json({ backups });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/backup/restore', requireSession, async (req, res) => {
+  const { filename } = req.body;
+  if (!filename) return res.status(400).json({ error: 'filename required' });
+  try {
+    const backup = require('./services/backupService');
+    const result = await backup.restoreBackup(filename);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Sessions / Conversations (Session only) ───────────────────────────
+router.post('/sessions', requireSession, async (req, res) => {
+  const { title } = req.body;
+  const userId = req.user?.id || 'default-user';
+  try {
+    const sessions = require('./services/sessionService');
+    const session = await sessions.createSession(userId, title);
+    res.status(201).json(session);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/sessions', requireSession, async (req, res) => {
+  const userId = req.user?.id || 'default-user';
+  try {
+    const sessions = require('./services/sessionService');
+    const list = await sessions.getSessions(userId);
+    res.json({ sessions: list });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/sessions/:sessionId', requireSession, async (req, res) => {
+  const { sessionId } = req.params;
+  const { limit = 50, offset = 0 } = req.query;
+  try {
+    const sessions = require('./services/sessionService');
+    const session = await sessions.getSession(sessionId);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    
+    const messages = await sessions.getMessages(sessionId, offset, offset + limit - 1);
+    res.json({ ...session, messages });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sessions/:sessionId/messages', requireSession, async (req, res) => {
+  const { sessionId } = req.params;
+  const { type, text, sources, fromCache, relevantChunks, jobId } = req.body;
+  if (!type || !text) return res.status(400).json({ error: 'type and text required' });
+  try {
+    const sessions = require('./services/sessionService');
+    const msg = await sessions.addMessage(sessionId, { type, text, sources, fromCache, relevantChunks, jobId });
+    res.status(201).json(msg);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/sessions/:sessionId', requireSession, async (req, res) => {
+  const { sessionId } = req.params;
+  const { title } = req.body;
+  if (!title) return res.status(400).json({ error: 'title required' });
+  try {
+    const sessions = require('./services/sessionService');
+    await sessions.updateSessionTitle(sessionId, title);
+    res.json({ message: 'Session updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/sessions/:sessionId', requireSession, async (req, res) => {
+  const { sessionId } = req.params;
+  const userId = req.user?.id || 'default-user';
+  try {
+    const sessions = require('./services/sessionService');
+    await sessions.deleteSession(userId, sessionId);
+    res.json({ message: 'Session deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sessions/:sessionId/clear', requireSession, async (req, res) => {
+  const { sessionId } = req.params;
+  try {
+    const sessions = require('./services/sessionService');
+    await sessions.clearSession(sessionId);
+    res.json({ message: 'Session cleared' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -294,7 +433,8 @@ router.get('/diagnostics', requireSession, async (req, res) => {
   // Test OpenRouter — do a lightweight chat ping instead of models.list()
   // models.list() can 401 on some valid keys; a minimal chat call is more reliable
   try {
-    const ping = await llm.openrouter.chat.completions.create({
+    const client = llm._openrouterClient();
+    const ping = await client.chat.completions.create({
       model:      llm.currentModel,
       messages:   [{ role: 'user', content: 'ping' }],
       max_tokens: 1

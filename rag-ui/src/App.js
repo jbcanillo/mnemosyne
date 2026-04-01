@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { User, LogOut, MessageSquare, BookOpen, Activity, Settings } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import QueryPanel from './components/QueryPanel';
 import DocumentsPanel from './components/DocumentsPanel';
@@ -10,10 +11,10 @@ import { ragApi } from './api';
 import './App.css';
 
 const TABS = [
-  { id: 'query',     label: 'Query',         icon: '⚡' },
-  { id: 'documents', label: 'Knowledge Base', icon: '📚' },
-  { id: 'status',    label: 'System Status',  icon: '🛰' },
-  { id: 'settings',  label: 'Settings',       icon: '⚙' },
+  { id: 'query',     label: 'Query',         icon: <MessageSquare size={14} /> },
+  { id: 'documents', label: 'Knowledge Base', icon: <BookOpen size={14} /> },
+  { id: 'status',    label: 'System Status',  icon: <Activity size={14} /> },
+  { id: 'settings',  label: 'Settings',       icon: <Settings size={14} /> },
 ];
 
 function AuthenticatedApp() {
@@ -21,6 +22,7 @@ function AuthenticatedApp() {
   const [activeTab,    setActiveTab]    = useState('query');
   const [serverOnline, setServerOnline] = useState(null);
   const [info,         setInfo]         = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // ── Persistent chat history — lives here so tab switches don't reset it ──
   const [chatHistory, setChatHistory] = useState([]);
@@ -59,6 +61,9 @@ function AuthenticatedApp() {
       {/* ── Header ── */}
       <header className="header">
         <div className="header-left">
+          <button className="tab-toggle-mobile" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            <span className="tab-toggle-icon">{mobileMenuOpen ? '✕' : '☰'}</span>
+          </button>
           <div className="logo">
             <span className="logo-name">Mnemosyne</span>
             <span className="logo-sub">RAG Knowledge Base</span>
@@ -66,7 +71,7 @@ function AuthenticatedApp() {
         </div>
         <div className="header-right">
           <div className="session-info">
-            <span className="session-user">👤 {username}</span>
+            <span className="session-user"><User size={14} /> {username}</span>
             {sessionExpirySummary() && (
               <span className="session-expiry">{sessionExpirySummary()}</span>
             )}
@@ -74,49 +79,24 @@ function AuthenticatedApp() {
               Sign out
             </button>
           </div>
-          <div className={`status-dot ${serverOnline === null ? 'unknown' : serverOnline ? 'online' : 'offline'}`}>
-            <span className="dot-pulse" />
-            <span>{serverOnline === null ? '…' : serverOnline ? 'Online' : 'Offline'}</span>
-          </div>
         </div>
       </header>
 
-      {/* ── Stats bar — generic labels, no brand or backend names ── */}
-      {info && (
-        <div className="stats-bar">
-          <div className="stat-item">
-            <span className="stat-value">{info.vectorStore?.totalChunks ?? '—'}</span>
-            <span className="stat-label">Chunks Indexed</span>
-          </div>
-          <div className="stat-sep" />
-          <div className="stat-item">
-            <span className="stat-value">{info.cache?.entries ?? '—'}</span>
-            <span className="stat-label">Cached Queries</span>
-          </div>
-          <div className="stat-sep" />
-          <div className="stat-item">
-            <span className="stat-value">{info.queue?.queryQueue?.active ?? '—'}</span>
-            <span className="stat-label">Active Jobs</span>
-          </div>
-          <div className="stat-sep" />
-          <div className="stat-item">
-            <span className="stat-value">{chatHistory.length}</span>
-            <span className="stat-label">Messages</span>
-          </div>
-        </div>
+      {/* ── Mobile sidebar overlay ── */}
+      {mobileMenuOpen && (
+        <div className="mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
       )}
 
-      {/* ── Tabs ── */}
-      <nav className="tabs">
+      {/* ── Tabs / Mobile sidebar ── */}
+      <nav className={`tabs ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         {TABS.map(t => (
           <button
             key={t.id}
             className={`tab-btn ${activeTab === t.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(t.id)}
+            onClick={() => { setActiveTab(t.id); setMobileMenuOpen(false); }}
           >
             <span className="tab-icon">{t.icon}</span>
             {t.label}
-            {/* Show unread dot on Query tab when chat has messages and tab is not active */}
             {t.id === 'query' && chatHistory.length > 0 && activeTab !== 'query' && (
               <span className="tab-unread" />
             )}
