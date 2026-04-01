@@ -41,7 +41,8 @@ class ConfigService {
         fs.mkdirSync(CONFIG_DIR, { recursive: true });
       }
     } catch (err) {
-      logger.warn(`[Config] Could not create config dir ${CONFIG_DIR}: ${err.message}`);
+      logger.error(`[Config] Could not create config dir ${CONFIG_DIR}: ${err.message}`);
+      throw new Error(`Cannot create config directory: ${err.message}`);
     }
   }
 
@@ -55,13 +56,15 @@ class ConfigService {
         logger.info('[Config] Loaded from disk');
       } else {
         this._config = { ...DEFAULTS };
-        // Seed from env if key was provided the old way
-        if (process.env.OPENROUTER_API_KEY) {
-          this._config.openrouterApiKey = process.env.OPENROUTER_API_KEY;
-          logger.info('[Config] Seeded OpenRouter key from environment variable');
-          this.save(); // persist it so future boots don't need the env var
-        }
       }
+
+      // ALWAYS override with env var if present — ensures .env key is always used
+      if (process.env.OPENROUTER_API_KEY) {
+        this._config.openrouterApiKey = process.env.OPENROUTER_API_KEY;
+        logger.info('[Config] OpenRouter key loaded from environment variable');
+      }
+
+      this.save(); // persist so future boots don't need the env var
     } catch (err) {
       logger.error(`[Config] Failed to load: ${err.message}`);
       this._config = { ...DEFAULTS };

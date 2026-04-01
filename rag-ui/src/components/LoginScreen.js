@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import './LoginScreen.css';
 
@@ -53,7 +54,7 @@ export default function LoginScreen() {
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              placeholder="admin"
+              placeholder="Enter your username"
               autoFocus
               disabled={loading}
               autoComplete="username"
@@ -79,14 +80,14 @@ export default function LoginScreen() {
                 onClick={() => setShowPass(v => !v)}
                 tabIndex={-1}
               >
-                {showPass ? '🙈' : '👁'}
+                {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
           </div>
 
           {error && (
             <div className="login-error" role="alert">
-              <span className="error-icon">⚠</span> {error}
+              <span className="error-icon"><AlertTriangle size={14} /></span> {error}
             </div>
           )}
 

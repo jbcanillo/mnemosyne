@@ -180,3 +180,121 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
 }
+
+/* ── Mobile Responsive ── */
+@media (max-width: 768px) {
+  .header {
+    padding: 0 14px;
+    height: 50px;
+  }
+  .logo-name {
+    font-size: 16px;
+  }
+  .logo-sub {
+    display: none;
+  }
+  .session-info {
+    padding: 4px 8px;
+    gap: 4px;
+  }
+  .session-user {
+    font-size: 11px;
+  }
+  .session-expiry {
+    display: none;
+  }
+  .tabs {
+    padding: 0 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-btn {
+    padding: 10px 12px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .main {
+    padding: 12px;
+  }
+  /* ── Mobile tab toggle ── */
+  .tab-toggle-mobile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+  .tab-toggle-mobile:hover {
+    background: rgba(255,255,255,0.08);
+  }
+  /* ── Mobile overlay ── */
+  .mobile-overlay {
+    display: block;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 149;
+  }
+  .header-left {
+    gap: 8px;
+  }
+  .tabs {
+    position: fixed;
+    top: 0;
+    left: -280px;
+    width: 260px;
+    height: 100vh;
+    background: rgba(8,12,20,0.97);
+    backdrop-filter: blur(20px);
+    border-right: 1px solid var(--border);
+    flex-direction: column;
+    padding: 60px 0 20px;
+    z-index: 150;
+    transition: left 0.3s ease;
+    overflow-y: auto;
+  }
+  .tabs.mobile-open {
+    left: 0;
+  }
+  .tab-btn {
+    padding: 14px 24px;
+    border-bottom: none;
+    border-left: 3px solid transparent;
+    justify-content: flex-start;
+    font-size: 13px;
+  }
+  .tab-btn.active {
+    border-bottom: none;
+    border-left-color: var(--accent);
+    background: rgba(124,92,252,0.08);
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 0 10px;
+    height: 46px;
+  }
+  .logo-name {
+    font-size: 14px;
+  }
+  .logout-btn {
+    font-size: 10px;
+  }
+  .tab-btn {
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+  .tab-icon {
+    font-size: 14px;
+  }
+  .main {
+    padding: 8px;
+  }
+}

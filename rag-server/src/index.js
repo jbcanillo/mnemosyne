@@ -105,6 +105,14 @@ app.listen(PORT, '0.0.0.0', async () => {
   } catch (err) {
     logger.error('Vector store init error:', err.message);
   }
+
+  // Init models service (seed defaults if empty)
+  try {
+    const ms = require('./services/modelsService');
+    await ms.initialize();
+  } catch (err) {
+    logger.error('Models service init error:', err.message);
+  }
 });
 
 module.exports = app;

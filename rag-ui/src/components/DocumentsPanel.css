@@ -61,3 +61,49 @@
   line-height: 1.5;
   word-break: break-word;
 }
+
+/* ── Mobile Responsive ── */
+@media (max-width: 768px) {
+  .docs-panel {
+    gap: 14px;
+  }
+  .dropzone {
+    padding: 24px;
+  }
+  .docs-table th,
+  .docs-table td {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .docs-table-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dropzone {
+    padding: 18px;
+  }
+  .dropzone-icon {
+    font-size: 28px;
+  }
+  .dropzone-text {
+    font-size: 13px;
+  }
+  .docs-table-wrap {
+    overflow-x: auto;
+  }
+  .docs-table {
+    min-width: 500px;
+  }
+}
+
+/* Spinner for Lucide icons */
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

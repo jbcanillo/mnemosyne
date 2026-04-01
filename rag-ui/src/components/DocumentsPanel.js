@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
+import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, Loader2, Inbox } from 'lucide-react';
 import { ragApi } from '../api';
 import './DocumentsPanel.css';
 
@@ -136,16 +137,25 @@ export default function DocumentsPanel({ onRefresh }) {
     }
   }
 
-  const fileIcon = t => ({ pdf:'📕', xlsx:'📗', xls:'📗', csv:'📊', md:'📝', docx:'📘' }[t] || '📄');
+  const fileIcon = t => {
+    const icons = {
+      pdf: <FileText size={18} />,
+      xlsx: <FileSpreadsheet size={18} />,
+      xls: <FileSpreadsheet size={18} />,
+      csv: <FileSpreadsheet size={18} />,
+      md: <FileText size={18} />,
+      docx: <FileText size={18} />,
+    };
+    return icons[t] || <File size={18} />;
+  };
 
   return (
     <div className="docs-panel">
-      <div className="panel-title">📚 Knowledge Base Documents</div>
 
       {/* Drop zone */}
       <div {...getRootProps()} className={`dropzone ${isDragActive ? 'drag-active' : ''}`}>
         <input {...getInputProps()} />
-        <div className="dropzone-icon">📤</div>
+        <div className="dropzone-icon"><Upload size={36} /></div>
         {isDragActive
           ? <div className="dropzone-text active">Drop files here…</div>
           : <>
@@ -166,10 +176,10 @@ export default function DocumentsPanel({ onRefresh }) {
               <div className="upload-info">
                 <span className="upload-name">{up.name}</span>
                 <span className={`upload-status status-${up.status}`}>
-                  {up.status === 'uploading'   && `⬆ Uploading ${up.progress}%`}
-                  {up.status === 'processing'  && `⚙ Processing… ${up.progress > 0 ? up.progress + '%' : ''}`}
-                  {up.status === 'done'        && `✅ Done — ${up.chunks} chunks indexed`}
-                  {up.status === 'error'       && `❌ ${up.error}`}
+                  {up.status === 'uploading'   && <><Loader2 size={12} className="spin" /> Uploading {up.progress}%</>}
+                  {up.status === 'processing'  && <><Loader2 size={12} className="spin" /> Processing… {up.progress > 0 ? up.progress + '%' : ''}</>}
+                  {up.status === 'done'        && <><CheckCircle size={12} /> Done — {up.chunks} chunks indexed</>}
+                  {up.status === 'error'       && <><XCircle size={12} /> {up.error}</>}
                 </span>
               </div>
               {(up.status === 'uploading' || up.status === 'processing') && (
@@ -199,7 +209,7 @@ export default function DocumentsPanel({ onRefresh }) {
 
         {documents.length === 0
           ? <div className="empty-state">
-              <div className="empty-icon">📭</div>
+              <div className="empty-icon"><Inbox size={40} /></div>
               <div className="empty-label">No documents yet. Upload your first ERP reference document above.</div>
             </div>
           : (
