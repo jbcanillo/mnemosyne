@@ -1,4 +1,30 @@
-.app { min-height: 100vh; display: flex; flex-direction: column; }
+.app { min-height: 100vh; display: flex; flex-direction: column; position: relative; }
+
+/* ── Animated background (same as login) ── */
+.app-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.app-bg .bg-orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(80px); opacity: 0.15;
+  animation: orbFloat 8s ease-in-out infinite;
+}
+.app-bg .bg-orb-1 { width: 600px; height: 600px; top: -20%; left: -10%; background: var(--accent); animation-delay: 0s; }
+.app-bg .bg-orb-2 { width: 400px; height: 400px; bottom: -10%; right: -5%; background: var(--accent2); animation-delay: -3s; }
+.app-bg .bg-orb-3 { width: 300px; height: 300px; top: 50%; left: 60%; background: var(--accent3); opacity: 0.08; animation-delay: -6s; }
+@keyframes orbFloat {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%      { transform: translate(30px,-20px) scale(1.05); }
+  66%      { transform: translate(-20px,15px) scale(0.95); }
+}
+.app-bg .bg-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Ensure content sits above background */
+.header, .tabs, .main { position: relative; z-index: 1; }
 
 /* ── Loading ── */
 .app-loading {
@@ -17,9 +43,10 @@
 .header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 28px; height: 58px;
-  background: rgba(8,12,20,0.85);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border);
+  background: rgba(8,12,20,0.5);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
   position: sticky; top: 0; z-index: 100;
 }
 .header::after {
@@ -182,6 +209,22 @@
 }
 
 /* ── Mobile Responsive ── */
+/* ── Mobile sidebar logo ── */
+.tabs-logo-area {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 0 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.tabs-logo-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 12px rgba(124,92,252,0.3));
+}
+
 @media (max-width: 768px) {
   .header {
     padding: 0 14px;
@@ -203,20 +246,9 @@
   .session-expiry {
     display: none;
   }
-  .tabs {
-    padding: 0 8px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .tab-btn {
-    padding: 10px 12px;
-    font-size: 11px;
-    white-space: nowrap;
-  }
   .main {
     padding: 12px;
   }
-  /* ── Mobile tab toggle ── */
   .tab-toggle-mobile {
     display: flex;
     align-items: center;
@@ -233,7 +265,6 @@
   .tab-toggle-mobile:hover {
     background: rgba(255,255,255,0.08);
   }
-  /* ── Mobile overlay ── */
   .mobile-overlay {
     display: block;
     position: fixed;
@@ -244,6 +275,10 @@
   .header-left {
     gap: 8px;
   }
+  .tabs-logo-area {
+    display: flex;
+  }
+  /* Hide tabs by default on mobile, show as sidebar when open */
   .tabs {
     position: fixed;
     top: 0;
@@ -254,7 +289,7 @@
     backdrop-filter: blur(20px);
     border-right: 1px solid var(--border);
     flex-direction: column;
-    padding: 60px 0 20px;
+    padding: 0 0 20px;
     z-index: 150;
     transition: left 0.3s ease;
     overflow-y: auto;
@@ -273,6 +308,39 @@
     border-bottom: none;
     border-left-color: var(--accent);
     background: rgba(124,92,252,0.08);
+  }
+}
+
+/* ── Desktop: hide hamburger ── */
+@media (min-width: 769px) {
+  .tab-toggle-mobile {
+    display: none !important;
+  }
+  .mobile-overlay {
+    display: none !important;
+  }
+  .tabs {
+    position: relative;
+    left: auto;
+    width: auto;
+    height: auto;
+    background: none;
+    border: none;
+    padding: 0;
+    z-index: auto;
+    overflow: visible;
+  }
+  .tab-btn {
+    padding: 11px 18px;
+    border-bottom: 2px solid transparent;
+    border-left: none;
+    justify-content: center;
+    font-size: 12px;
+  }
+  .tab-btn.active {
+    border-bottom-color: var(--accent);
+    border-left-color: transparent;
+    background: none;
   }
 }
 
@@ -296,5 +364,43 @@
   }
   .main {
     padding: 8px;
+  }
+}
+
+/* ── Footer ── */
+.app-footer {
+  position: relative;
+  z-index: 1;
+  padding: 12px 28px;
+  background: rgba(8,12,20,0.4);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+.footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 0.3px;
+}
+
+.footer-sep {
+  color: var(--border2);
+}
+
+@media (max-width: 768px) {
+  .app-footer {
+    padding: 10px 14px;
+  }
+  .footer-content {
+    font-size: 10px;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .footer-sep {
+    display: none;
   }
 }

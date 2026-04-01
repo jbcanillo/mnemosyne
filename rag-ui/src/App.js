@@ -58,6 +58,14 @@ function AuthenticatedApp() {
 
   return (
     <div className="app">
+      {/* ── Animated background ── */}
+      <div className="app-bg" aria-hidden="true">
+        <div className="bg-grid" />
+        <div className="bg-orb bg-orb-1" />
+        <div className="bg-orb bg-orb-2" />
+        <div className="bg-orb bg-orb-3" />
+      </div>
+
       {/* ── Header ── */}
       <header className="header">
         <div className="header-left">
@@ -89,6 +97,9 @@ function AuthenticatedApp() {
 
       {/* ── Tabs / Mobile sidebar ── */}
       <nav className={`tabs ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+        <div className="tabs-logo-area">
+          <img src="/logo.svg" alt="Mnemosyne" className="tabs-logo-img" />
+        </div>
         {TABS.map(t => (
           <button
             key={t.id}
@@ -119,6 +130,15 @@ function AuthenticatedApp() {
           <SettingsPanel onRefresh={checkHealth} />
         </div>
       </main>
+
+      {/* ── Footer ── */}
+      <footer className="app-footer">
+        <div className="footer-content">
+          <span>© {new Date().getFullYear()} Mnemosyne RAG Knowledge Base</span>
+          <span className="footer-sep">·</span>
+          <span>Self-hosted Retrieval-Augmented Generation</span>
+        </div>
+      </footer>
     </div>
   );
 }

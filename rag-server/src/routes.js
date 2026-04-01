@@ -477,3 +477,44 @@ router.get('/diagnostics', requireSession, async (req, res) => {
   const allOk = ['ollama','chromadb','redis','openrouter'].every(k => result[k]?.status === 'ok');
   res.status(allOk ? 200 : 207).json({ allOk, ...result });
 });
+
+// ── Logs (Session only) — read recent server logs ────────────────────
+router.get('/logs', requireSession, async (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const { logger } = require('./utils/logger');
+  const lines = parseInt(req.query.lines) || 200;
+
+  try {
+    const logFile = path.join('/var/log/rag', 'combined.log');
+    if (!fs.existsSync(logFile)) {
+      // Fallback: try error.log
+      const errorFile = path.join('/var/log/rag', 'error.log');
+      if (!fs.existsSync(errorFile)) {
+        return res.json({ logs: [], message: 'No log files found. Logs are written to stdout — use docker logs.' });
+      }
+      const raw = fs.readFileSync(errorFile, 'utf8');
+      const parsed = raw.trim().split('\n').slice(-lines).map(line => {
+        const match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\]: (.*)$/);
+        if (match) {
+          return { timestamp: match[1], level: match[2].toLowerCase(), message: match[3] };
+        }
+        return { timestamp: '', level: 'info', message: line };
+      });
+      return res.json({ logs: parsed.reverse() });
+    }
+
+    const raw = fs.readFileSync(logFile, 'utf8');
+    const parsed = raw.trim().split('\n').slice(-lines).map(line => {
+      const match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\]: (.*)$/);
+      if (match) {
+        return { timestamp: match[1], level: match[2].toLowerCase(), message: match[3] };
+      }
+      return { timestamp: '', level: 'info', message: line };
+    });
+    res.json({ logs: parsed.reverse() });
+  } catch (err) {
+    logger.error('[Logs] Failed to read logs:', err.message);
+    res.json({ logs: [], error: err.message });
+  }
+});

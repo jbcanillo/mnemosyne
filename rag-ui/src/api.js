@@ -92,6 +92,7 @@ export const ragApi = {
   getUsage:       () => api.get('/usage'),
   resetUsage:     () => api.delete('/usage'),
   healthcheck:    () => api.get('/healthcheck'),
+  getLogs:        (lines = 200) => api.get(`/logs?lines=${lines}`),
 
   // Settings
   getSettings:    () => api.get('/settings'),

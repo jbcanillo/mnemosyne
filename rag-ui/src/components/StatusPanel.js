@@ -45,7 +45,7 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
     }
   }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { loadAll(); loadLogs(); }, [loadAll]);
 
   async function runHealthcheck() {
     setHcLoading(true);
@@ -134,7 +134,7 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
     setLogsLoading(true);
     setLogsError(null);
     try {
-      const r = await ragApi.getDiagnostics();
+      const r = await ragApi.getLogs(200);
       if (r && r.logs && Array.isArray(r.logs)) {
         setLogs(r.logs);
       } else {
@@ -165,9 +165,11 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
           <button className="btn btn-ghost btn-xs" onClick={runHealthcheck} disabled={hcLoading}>
             {hcLoading ? <span className="spinner-xs" /> : <HeartPulse size={12} />} Healthcheck
           </button>
-          <a href="http://localhost:3001/docs" target="_blank" rel="noreferrer" className="btn btn-ghost btn-xs">
-            API Docs
-          </a>
+          <button className="btn btn-ghost btn-xs">
+            <a href="http://localhost:3001/docs" style={{ textDecoration: 'none' }} target="_blank" rel="noreferrer">
+              <FolderOpen size={12} /> API Docs
+            </a>
+          </button>
           <button className="btn btn-ghost btn-xs" onClick={loadAll} disabled={diagLoading}>
             {diagLoading ? <span className="spinner-xs" /> : <RefreshCw size={12} />} Refresh
           </button>

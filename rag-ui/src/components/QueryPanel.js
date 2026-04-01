@@ -20,7 +20,13 @@ export default function QueryPanel({ history, setHistory }) {
   const [sessions,  setSessions]  = useState([]);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [sessionsLoading, setSessionsLoading] = useState(false);
-  const [showSessions, setShowSessions] = useState(true);
+  const [showSessions, setShowSessions] = useState(() => {
+    // Open on desktop, closed on mobile
+    if (typeof window !== 'undefined') {
+      return window.innerWidth > 768;
+    }
+    return true;
+  });
   const [newSessionTitle, setNewSessionTitle] = useState('');
   const bottomRef = useRef(null);
   const sessionsLoadedRef = useRef(false);
@@ -293,7 +299,7 @@ export default function QueryPanel({ history, setHistory }) {
       <aside className={`conv-sidebar ${showSessions ? 'open' : 'closed'}`}>
         <div className="conv-sidebar-header">
           <span className="conv-sidebar-title"><MessageSquare size={14} /> Conversations</span>
-          <button className="btn-icon" onClick={() => setShowSessions(!showSessions)} title={showSessions ? 'Collapse' : 'Expand'}>
+          <button className="btn-icon btn-ghost border-none outline-none" onClick={() => setShowSessions(!showSessions)} title={showSessions ? 'Collapse' : 'Expand'}>
             {showSessions ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
           </button>
         </div>
@@ -357,8 +363,8 @@ export default function QueryPanel({ history, setHistory }) {
       <div className="query-main">
         {/* Top bar */}
         <div className="query-topbar">
-          <button className="btn-icon" onClick={() => setShowSessions(!showSessions)} title="Toggle conversations">
-            <PanelRight size={16} className="lucide-transparent" />
+          <button className="btn-icon btn-ghost border-none outline-none" onClick={() => setShowSessions(!showSessions)} title="Toggle conversations">
+            <PanelRight size={16} />
           </button>
           <span className="query-topbar-title">
             {sessions.find(s => s.id === currentSessionId)?.title || 'New Conversation'}
