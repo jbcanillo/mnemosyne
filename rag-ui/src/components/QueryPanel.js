@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { MessageSquare, Plus, Trash2, Send, PanelLeftOpen, PanelLeftClose, PanelRight, Bot, AlertTriangle, User, FileText, Zap, Eraser, Tag, X } from 'lucide-react';
+import { MessageSquare, Trash2, Send, PanelLeft, PanelRight, Bot, AlertTriangle, User, FileText, Zap, Eraser, Tag, X } from 'lucide-react';
 import { ragApi } from '../api';
 import './QueryPanel.css';
 
@@ -13,7 +13,7 @@ const EXAMPLE_QUERIES = [
 ];
 
 // history and setHistory come from App.js so chat persists across tab switches
-export default function QueryPanel({ history, setHistory }) {
+export default function QueryPanel({ history, setHistory, onLoadingChange }) {
   const [query,     setQuery]     = useState('');
   const [loading,   setLoading]   = useState(false);
   const [asyncMode, setAsyncMode] = useState(true);
@@ -29,9 +29,20 @@ export default function QueryPanel({ history, setHistory }) {
   });
   const [newSessionTitle, setNewSessionTitle] = useState('');
   const [availableTags, setAvailableTags] = useState([]);
-  const [selectedTags, setSelectedTags] = useState([]);
+  // Tags are now stored per-session: { sessionId: [tag1, tag2, ...] }
+  const [sessionTags, setSessionTags] = useState({});
+  // Track which sessions have active processing jobs
+  const [processingSessions, setProcessingSessions] = useState({});
   const bottomRef = useRef(null);
   const sessionsLoadedRef = useRef(false);
+
+  // Get selected tags for the current session
+  const selectedTags = currentSessionId ? (sessionTags[currentSessionId] || []) : [];
+
+  function setSelectedTags(tags) {
+    if (!currentSessionId) return;
+    setSessionTags(prev => ({ ...prev, [currentSessionId]: tags }));
+  }
 
   // Load sessions and tags on mount
   useEffect(() => {
@@ -49,14 +60,21 @@ export default function QueryPanel({ history, setHistory }) {
   }
 
   function toggleTag(tag) {
-    setSelectedTags(prev =>
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-    );
+    if (!currentSessionId) return;
+    const current = sessionTags[currentSessionId] || [];
+    const updated = current.includes(tag)
+      ? current.filter(t => t !== tag)
+      : [...current, tag];
+    setSessionTags(prev => ({ ...prev, [currentSessionId]: updated }));
   }
 
   function clearSelectedTags() {
-    setSelectedTags([]);
+    if (!currentSessionId) return;
+    setSessionTags(prev => ({ ...prev, [currentSessionId]: [] }));
   }
+
+  // When switching sessions, the selectedTags will automatically update
+  // because it's derived from sessionTags[currentSessionId]
 
   // Create initial session only after sessions have loaded AND there are truly none
   useEffect(() => {
@@ -74,12 +92,17 @@ export default function QueryPanel({ history, setHistory }) {
     try {
       setSessionsLoading(true);
       const r = await ragApi.getSessions();
-      setSessions(r.sessions || []);
+      // Ensure all sessions have createdAt timestamp
+      const sessionsWithDates = (r.sessions || []).map(s => ({
+        ...s,
+        createdAt: s.createdAt || s.created_at || new Date().toISOString()
+      }));
+      setSessions(sessionsWithDates);
       
       // Set current session to the first one if not set
-      if (!currentSessionId && r.sessions?.length > 0) {
-        setCurrentSessionId(r.sessions[0].id);
-        await loadSessionMessages(r.sessions[0].id);
+      if (!currentSessionId && sessionsWithDates?.length > 0) {
+        setCurrentSessionId(sessionsWithDates[0].id);
+        await loadSessionMessages(sessionsWithDates[0].id);
       }
     } catch (err) {
       toast.error('Failed to load sessions: ' + err.message);
@@ -138,7 +161,10 @@ export default function QueryPanel({ history, setHistory }) {
   async function switchSession(sessionId) {
     setCurrentSessionId(sessionId);
     await loadSessionMessages(sessionId);
-    setShowSessions(false);
+    // Only auto-close on mobile
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      setShowSessions(false);
+    }
   }
 
   async function deleteSession(sessionId, e) {
@@ -184,6 +210,19 @@ export default function QueryPanel({ history, setHistory }) {
     setQuery('');
     setLoading(true);
 
+    // Capture the session ID at query time to avoid issues when switching conversations
+    const querySessionId = currentSessionId;
+
+    // Mark this session as processing
+    console.log('[QueryPanel] Setting processing state for session:', querySessionId);
+    setProcessingSessions(prev => {
+      const newState = { ...prev, [querySessionId]: true };
+      console.log('[QueryPanel] processingSessions updated:', newState);
+      return newState;
+    });
+    onLoadingChange?.(true);
+    console.log('[QueryPanel] onLoadingChange(true) called');
+
     // Add user message to history
     const userMsg = { type: 'user', text: q, ts: new Date() };
     setHistory(h => [...h, userMsg]);
@@ -194,6 +233,14 @@ export default function QueryPanel({ history, setHistory }) {
     } catch (err) {
       console.warn('Failed to save user message:', err);
     }
+
+    const clearProcessing = () => {
+      setProcessingSessions(prev => ({ ...prev, [querySessionId]: false }));
+      // Only clear global loading if we're still on the same session
+      if (currentSessionId === querySessionId) {
+        onLoadingChange?.(false);
+      }
+    };
 
     try {
       if (asyncMode) {
@@ -206,7 +253,7 @@ export default function QueryPanel({ history, setHistory }) {
         } catch (err) {
           console.warn('Failed to save assistant message:', err);
         }
-        pollJob(job.jobId);
+        pollJob(job.jobId, clearProcessing);
       } else {
         const result = await ragApi.query(q, { includeChunks: true, tags: selectedTags.length > 0 ? selectedTags : undefined });
         
@@ -237,6 +284,8 @@ export default function QueryPanel({ history, setHistory }) {
         } catch (err) {
           console.warn('Failed to save assistant message:', err);
         }
+        // Sync mode: clear processing immediately after response
+        clearProcessing();
       }
     } catch (err) {
       const errorMsg = { type: 'error', text: err.message, ts: new Date() };
@@ -248,12 +297,13 @@ export default function QueryPanel({ history, setHistory }) {
         console.warn('Failed to save error message:', saveErr);
       }
       toast.error(err.message);
+      clearProcessing();
     } finally {
       setLoading(false);
     }
   }
 
-  async function pollJob(jobId) {
+  async function pollJob(jobId, onDone) {
     const poll = async () => {
       try {
         const status = await ragApi.getJobStatus(jobId);
@@ -276,6 +326,7 @@ export default function QueryPanel({ history, setHistory }) {
           } catch (err) {
             console.warn('Failed to save async result:', err);
           }
+          onDone();
           return;
         }
         if (status.state === 'failed') {
@@ -289,6 +340,7 @@ export default function QueryPanel({ history, setHistory }) {
           } catch (err) {
             console.warn('Failed to save error:', err);
           }
+          onDone();
           return;
         }
         setTimeout(poll, 1500);
@@ -332,9 +384,6 @@ export default function QueryPanel({ history, setHistory }) {
       <aside className={`conv-sidebar ${showSessions ? 'open' : 'closed'}`}>
         <div className="conv-sidebar-header">
           <span className="conv-sidebar-title"><MessageSquare size={14} /> Conversations</span>
-          <button className="btn-icon btn-ghost border-none outline-none" onClick={() => setShowSessions(!showSessions)} title={showSessions ? 'Collapse' : 'Expand'}>
-            {showSessions ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-          </button>
         </div>
 
         {showSessions && (
@@ -352,30 +401,6 @@ export default function QueryPanel({ history, setHistory }) {
               </button>
             </div>
 
-            {/* Tag selector in sidebar */}
-            {availableTags.length > 0 && (
-              <div className="conv-tag-selector">
-                <div className="conv-tag-label"><Tag size={12} /> Filter by tags</div>
-                <div className="conv-tag-chips">
-                  {availableTags.map(tag => (
-                    <button
-                      key={tag}
-                      type="button"
-                      className={`conv-tag-chip ${selectedTags.includes(tag) ? 'active' : ''}`}
-                      onClick={() => toggleTag(tag)}
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-                {selectedTags.length > 0 && (
-                  <button type="button" className="btn btn-ghost btn-xs conv-tag-clear" onClick={clearSelectedTags}>
-                    <X size={10} /> Clear
-                  </button>
-                )}
-              </div>
-            )}
-
             <div className="conv-list">
               {sessionsLoading ? (
                 <div className="conv-empty">Loading...</div>
@@ -389,7 +414,12 @@ export default function QueryPanel({ history, setHistory }) {
                     onClick={() => switchSession(session.id)}
                   >
                     <div className="conv-item-text">
-                      <div className="conv-item-title">{session.title}</div>
+                      <div className="conv-item-title">
+                        {session.title}
+                        {processingSessions[session.id] && (
+                          <span className="conv-processing-dot" title="Processing query..." />
+                        )}
+                      </div>
                       <div className="conv-item-meta">
                         <span>{session.messageCount || 0} msgs</span>
                         {session.createdAt && (
@@ -428,7 +458,7 @@ export default function QueryPanel({ history, setHistory }) {
         {/* Top bar */}
         <div className="query-topbar">
           <button className="btn-icon btn-ghost border-none outline-none" onClick={() => setShowSessions(!showSessions)} title="Toggle conversations">
-            <PanelRight size={16} />
+            {showSessions ? <PanelLeft size={16} /> : <PanelRight size={16} />}
           </button>
           <span className="query-topbar-title">
             {sessions.find(s => s.id === currentSessionId)?.title || 'New Conversation'}
@@ -525,6 +555,29 @@ export default function QueryPanel({ history, setHistory }) {
 
         {/* Input */}
         <form className="query-form" onSubmit={handleQuery}>
+          {/* Tag selector - per conversation */}
+          {availableTags.length > 0 && (
+            <div className="chat-tag-selector">
+              <div className="chat-tag-label"><Tag size={12} /> Filter by tags</div>
+              <div className="chat-tag-chips">
+                {availableTags.map(tag => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className={`chat-tag-chip ${selectedTags.includes(tag) ? 'active' : ''}`}
+                    onClick={() => toggleTag(tag)}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+              {selectedTags.length > 0 && (
+                <button type="button" className="btn btn-ghost btn-xs chat-tag-clear" onClick={clearSelectedTags}>
+                  <X size={10} /> Clear
+                </button>
+              )}
+            </div>
+          )}
           <div className="input-wrapper">
             <textarea
               className="query-input"

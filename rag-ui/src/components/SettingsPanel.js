@@ -489,7 +489,7 @@ export default function SettingsPanel({ onRefresh }) {
                       <button className="btn btn-ghost btn-xs" onClick={() => restoreBackup(b.filename)} disabled={restoring}>
                         {restoring ? 'Restoring…' : <><Upload size={12} /> Restore</>}
                       </button>
-                      <button className="btn btn-danger btn-smbackup-delete" onClick={() => deleteBackup(b.filename)} title="Delete backup">
+                      <button className="btn btn-danger btn-xs backup-delete" onClick={() => deleteBackup(b.filename)} title="Delete backup">
                         <Trash2 size={14} />
                       </button>
                     </div>

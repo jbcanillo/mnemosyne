@@ -5,8 +5,6 @@ import { ragApi } from '../api';
 import './StatusPanel.css';
 
 export default function StatusPanel({ info, serverOnline, onRefresh }) {
-  const [clearing,     setClearing]     = useState(false);
-  const [resetting,    setResetting]    = useState(false);
   const [diagLoading,  setDiagLoading]  = useState(false);
   const [diagnostics,  setDiagnostics]  = useState(null);
   const [usage,        setUsage]        = useState(null);
@@ -16,10 +14,6 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
   const [debugQ,       setDebugQ]       = useState('');
   const [debugResult,  setDebugResult]  = useState(null);
   const [debugLoading, setDebugLoading] = useState(false);
-  const [backupsLoading, setBackupsLoading] = useState(false);
-  const [backups,      setBackups]      = useState([]);
-  const [backupProgress, setBackupProgress] = useState(null);
-  const [restoring,    setRestoring]    = useState(false);
   const [logs,         setLogs]         = useState([]);
   const [logsLoading,  setLogsLoading]  = useState(false);
   const [logsError,    setLogsError]    = useState(null);
@@ -73,21 +67,6 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
     }
   }
 
-  async function clearCache() {
-    setClearing(true);
-    try { const r = await ragApi.clearCache(); toast.success(r.message || 'Cache cleared'); onRefresh?.(); }
-    catch (err) { toast.error('Failed: ' + err.message); }
-    finally { setClearing(false); }
-  }
-
-  async function resetVectorStore() {
-    if (!window.confirm('Delete ALL indexed chunks? You will need to re-upload documents.')) return;
-    setResetting(true);
-    try { await ragApi.resetVectorStore(); toast.success('Vector store reset'); onRefresh?.(); }
-    catch (err) { toast.error('Reset failed: ' + err.message); }
-    finally { setResetting(false); }
-  }
-
   async function resetUsage() {
     setResettingUsage(true);
     try { await ragApi.resetUsage(); toast.success('Usage stats reset'); await loadAll(); }
@@ -102,45 +81,6 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
     try { const r = await ragApi.debugQuery(debugQ.trim()); setDebugResult(r); }
     catch (err) { toast.error('Debug failed: ' + err.message); }
     finally { setDebugLoading(false); }
-  }
-
-  async function loadBackups() {
-    setBackupsLoading(true);
-    try {
-      const r = await ragApi.listBackups();
-      setBackups(r.backups || []);
-    } catch (err) {
-      toast.error('Failed to load backups: ' + err.message);
-    } finally {
-      setBackupsLoading(false);
-    }
-  }
-
-  async function createBackup() {
-    if (!window.confirm('Create a backup of knowledge base and config?')) return;
-    setBackupProgress('Starting...');
-    try {
-      const r = await ragApi.createBackup();
-      toast.success(`Backup created: ${r.filename} (${r.size} MB)`);
-      await loadBackups();
-      setBackupProgress(null);
-    } catch (err) {
-      toast.error('Backup failed: ' + err.message);
-      setBackupProgress(null);
-    }
-  }
-
-  async function restoreBackup(filename) {
-    if (!window.confirm(`Restore from ${filename}? This will replace your current knowledge base!`)) return;
-    setRestoring(true);
-    try {
-      await ragApi.restoreBackup(filename);
-      toast.success('Restore complete! System restarting...');
-      setTimeout(() => window.location.reload(), 3000);
-    } catch (err) {
-      toast.error('Restore failed: ' + err.message);
-      setRestoring(false);
-    }
   }
 
   async function loadLogs() {
@@ -210,13 +150,15 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
       )}
 
       {/* ── Service health cards ── */}
-      <div className="status-grid">
-        <StatusCard title="Server"       status={serverOnline ? 'online' : 'offline'} icon={<Activity size={15} />} detail={serverOnline ? 'Healthy' : 'Unreachable'} />
-        <StatusCard title="OpenRouter"   status={diagLoading ? 'loading' : or?.status === 'ok' ? 'online' : 'offline'} icon={<Globe size={15} />}
-          detail={diagLoading ? 'Checking…' : or?.status === 'ok' ? 'Connected' : or?.error ?? 'Not connected'} />
-        <StatusCard title="Vector Store" status={vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={`${vs?.totalChunks ?? 0} chunks indexed`} />
-        <StatusCard title="Cache"        status={cache ? 'online' : 'unknown'} icon={<Zap size={15} />} detail={cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
-      </div>
+      {!diagLoading && (
+        <div className="status-grid">
+          <StatusCard title="Server"       status={serverOnline ? 'online' : 'offline'} icon={<Activity size={15} />} detail={serverOnline ? 'Healthy' : 'Unreachable'} />
+          <StatusCard title="OpenRouter"   status={or?.status === 'ok' ? 'online' : 'offline'} icon={<Globe size={15} />}
+            detail={or?.status === 'ok' ? 'Connected' : or?.error ?? 'Not connected'} />
+          <StatusCard title="Vector Store" status={vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={`${vs?.totalChunks ?? 0} chunks indexed`} />
+          <StatusCard title="Cache"        status={cache ? 'online' : 'unknown'} icon={<Zap size={15} />} detail={cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
+        </div>
+      )}
 
       {/* ── Active Model Card ── */}
       <div className="sp-section model-info-section">

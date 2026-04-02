@@ -17,6 +17,7 @@ export default function DocumentsPanel({ onRefresh }) {
   const [editingDocId, setEditingDocId] = useState(null);
   const [editTags, setEditTags] = useState([]);
   const [editTagInput, setEditTagInput] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchDocuments(); fetchTags(); }, []);
 
@@ -26,6 +27,8 @@ export default function DocumentsPanel({ onRefresh }) {
       setDocuments(data.documents || []);
     } catch (err) {
       toast.error('Failed to load documents: ' + err.message);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -305,12 +308,12 @@ export default function DocumentsPanel({ onRefresh }) {
 
       {/* Documents table */}
       <div className="docs-table-wrap">
-        <div className="docs-table-header">
-          <span>{documents.length} document{documents.length !== 1 ? 's' : ''} in knowledge base</span>
-          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={fetchDocuments}>
-            ↻ Refresh
-          </button>
-        </div>
+          <div className="docs-table-header">
+            <span>{documents.length} document{documents.length !== 1 ? 's' : ''} in knowledge base</span>
+            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={fetchDocuments}>
+              ↻ Refresh
+            </button>
+          </div>
 
         {documents.length === 0
           ? <div className="empty-state">
