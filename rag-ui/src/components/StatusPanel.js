@@ -166,7 +166,7 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
             {hcLoading ? <span className="spinner-xs" /> : <HeartPulse size={12} />} Healthcheck
           </button>
           <button className="btn btn-ghost btn-xs">
-            <a href="http://localhost:3001/docs" style={{ textDecoration: 'none' }} target="_blank" rel="noreferrer">
+            <a href="http://localhost:3001/docs" target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
               <FolderOpen size={12} /> API Docs
             </a>
           </button>
