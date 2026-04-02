@@ -286,9 +286,7 @@ curl -X POST http://localhost:3001/api/vector-store/reset \
 | `CACHE_TTL` | `3600` | Query cache TTL in seconds |
 | `QUERY_RATE_LIMIT` | `20` | Max queries per minute per IP |
 | `CORS_ORIGIN` | `*` | Restrict in production |
-| `APP_URL` | `http://localhost:3000` | Shown in OpenRouter dashboard |
-| `APP_TITLE` | `Mnemosyne RAG` | Shown in OpenRouter dashboard |
-
+| `APP_URL` | `http://localhost:3000` | Application start URL |
 ---
 
 ## Troubleshooting

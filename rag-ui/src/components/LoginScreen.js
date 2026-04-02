@@ -40,7 +40,7 @@ export default function LoginScreen() {
         {/* Header */}
         <div className="login-header">
           <div className="login-logo">
-            <img src="/logo.svg" alt="Mnemosyne Logo" className="logo-img" />
+            <img src="/logo.svg" alt="App Logo" className="logo-img" />
           </div>
           <div className="login-title">Mnemosyne</div>
           <div className="login-subtitle">RAG Knowledge Base</div>
@@ -107,8 +107,10 @@ export default function LoginScreen() {
           </button>
         </form>
 
-        <div className="login-footer">
-          Credentials are set via environment variables. Sessions expire after 8 hours.
+       <div className="login-footer">
+          <span>© {new Date().getFullYear()} Mnemosyne RAG Knowledge Base</span>
+          <span><br /></span>
+          <span>Self-hosted Retrieval-Augmented Generation</span>
         </div>
       </div>
     </div>

@@ -288,7 +288,7 @@ export default function SettingsPanel({ onRefresh }) {
               {saving ? <span className="spinner-xs" /> : <Save size={14} />} Save Key
             </button>
             {keyIsSet && (
-              <button className="btn btn-info" type="button" onClick={testKey} disabled={testing}>
+              <button className="btn btn-ghost" type="button" onClick={testKey} disabled={testing}>
                 {testing ? <span className="spinner-xs" /> : <Zap size={14} />} Test Connection
               </button>
             )}
@@ -474,7 +474,7 @@ export default function SettingsPanel({ onRefresh }) {
                       <div className="backup-name">{b.filename}</div>
                       <div className="backup-meta">{(b.size / 1024 / 1024).toFixed(1)} MB · {new Date(b.created).toLocaleString()}</div>
                     </div>
-                    <button className="btn btn-info btn-xs" onClick={() => restoreBackup(b.filename)} disabled={restoring}>
+                    <button className="btn btn-ghost btn-xs" onClick={() => restoreBackup(b.filename)} disabled={restoring}>
                       {restoring ? 'Restoring…' : <><Upload size={12} /> Restore</>}
                     </button>
                   </div>
