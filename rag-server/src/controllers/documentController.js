@@ -9,7 +9,7 @@ const { logger }     = require('../utils/logger');
 
 // ── Ingest job processor ─────────────────────────────────────────────
 queueService.processIngests(async (job) => {
-  const { filePath, filename, fileType, documentId } = job.data;
+  const { filePath, filename, fileType, documentId, tags = [] } = job.data;
 
   try {
     logger.info(`[Ingest] START: ${filename} (${documentId})`);
@@ -38,7 +38,8 @@ queueService.processIngests(async (job) => {
     logger.info(`[Ingest] Extracted ${rawText.length} characters`);
 
     // 2. Chunk text
-    const metadata = { filename, fileType, documentId, uploadedAt: new Date().toISOString() };
+    const tagsString = tags.join(',');
+    const metadata = { filename, fileType, documentId, uploadedAt: new Date().toISOString(), tags: tagsString };
     const chunks = documentParser.chunkText(rawText, documentId, metadata);
     await job.progress(35);
 
@@ -99,10 +100,17 @@ exports.upload = async (req, res) => {
     });
   }
 
+  // Parse tags from form data (comma-separated string)
+  const tagsRaw = req.body.tags || '';
+  const tags = tagsRaw
+    .split(',')
+    .map(t => t.trim().toLowerCase())
+    .filter(t => t.length > 0);
+
   const documentId = uuidv4();
 
   try {
-    const job = await queueService.addIngest({ filePath, filename, fileType: ext, documentId });
+    const job = await queueService.addIngest({ filePath, filename, fileType: ext, documentId, tags });
     logger.info(`[Upload] Queued: ${filename} → job ${job.id}`);
 
     res.status(202).json({
@@ -110,6 +118,7 @@ exports.upload = async (req, res) => {
       jobId: String(job.id),
       filename,
       fileType: ext,
+      tags,
       status: 'processing',
       message: 'Document queued for ingestion.'
     });
@@ -145,7 +154,14 @@ exports.ingestStatus = async (req, res) => {
 
 exports.list = async (req, res) => {
   try {
-    const docs = await vectorStore.listDocuments();
+    // Parse optional tags filter from query params (comma-separated)
+    const tagsRaw = req.query.tags || '';
+    const tagsFilter = tagsRaw
+      .split(',')
+      .map(t => t.trim().toLowerCase())
+      .filter(t => t.length > 0);
+
+    const docs = await vectorStore.listDocuments(tagsFilter.length > 0 ? tagsFilter : null);
     res.json({ documents: docs, total: docs.length });
   } catch (err) {
     logger.error('List documents error:', err);
@@ -172,5 +188,55 @@ exports.stats = async (req, res) => {
     res.json({ ...stats, totalDocuments: docs.length });
   } catch (err) {
     res.status(500).json({ error: 'Failed to get stats' });
+  }
+};
+
+/**
+ * GET /api/documents/tags
+ * List all unique tags across all documents
+ */
+exports.getTags = async (req, res) => {
+  try {
+    const tags = await vectorStore.getUniqueTags();
+    res.json({ tags });
+  } catch (err) {
+    logger.error('Get tags error:', err);
+    res.status(500).json({ error: 'Failed to get tags' });
+  }
+};
+
+/**
+ * PUT /api/documents/:id/tags
+ * Update tags for a specific document
+ */
+exports.updateTags = async (req, res) => {
+  const { id } = req.params;
+  const { tags } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ error: 'Document ID required' });
+  }
+
+  if (!Array.isArray(tags)) {
+    return res.status(400).json({ error: 'Tags must be an array' });
+  }
+
+  // Validate and normalize tags
+  const normalizedTags = tags
+    .map(t => String(t).trim().toLowerCase())
+    .filter(t => t.length > 0);
+
+  try {
+    await vectorStore.updateTags(id, normalizedTags);
+    res.json({
+      message: `Tags updated for document ${id}`,
+      tags: normalizedTags
+    });
+  } catch (err) {
+    if (err.message.includes('not found')) {
+      return res.status(404).json({ error: err.message });
+    }
+    logger.error('Update tags error:', err);
+    res.status(500).json({ error: 'Failed to update tags' });
   }
 };

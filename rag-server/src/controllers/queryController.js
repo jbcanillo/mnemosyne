@@ -32,11 +32,12 @@ async function processRagQuery(query, options = {}, job = null) {
   }
   if (job) await job.progress(30);
 
-  // 2. Retrieve top-K chunks
+  // 2. Retrieve top-K chunks (with optional tag filtering)
   let chunks;
   try {
     const topK = options.topK || TOP_K;
-    chunks = await vectorStore.query(queryEmbedding, topK);
+    const tags = options.tags || null;
+    chunks = await vectorStore.query(queryEmbedding, topK, tags);
   } catch (err) {
     err.step = 'vector_search';
     throw err;

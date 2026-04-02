@@ -52,6 +52,62 @@
   gap: 6px;
 }
 
+/* ── Conversation tag selector ── */
+.conv-tag-selector {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border2);
+  border-radius: var(--radius);
+}
+.conv-tag-label {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px;
+}
+.conv-tag-chips {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.conv-tag-chip {
+  padding: 2px 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border2);
+  border-radius: 10px; font-size: 10px; font-weight: 500; color: var(--text3);
+  cursor: pointer; transition: all 0.15s;
+}
+.conv-tag-chip:hover {
+  background: rgba(255,255,255,0.08); border-color: var(--border);
+}
+.conv-tag-chip.active {
+  background: rgba(124,92,252,0.15); border-color: rgba(124,92,252,0.4); color: var(--accent);
+}
+.conv-tag-clear {
+  align-self: flex-start; padding: 2px 8px; font-size: 10px;
+}
+
+/* ── Conversation tag selector ── */
+.conv-tag-selector {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border2);
+  border-radius: var(--radius);
+}
+.conv-tag-label {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px;
+}
+.conv-tag-chips {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.conv-tag-chip {
+  padding: 2px 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border2);
+  border-radius: 10px; font-size: 10px; font-weight: 500; color: var(--text3);
+  cursor: pointer; transition: all 0.15s;
+}
+.conv-tag-chip:hover {
+  background: rgba(255,255,255,0.08); border-color: var(--border);
+}
+.conv-tag-chip.active {
+  background: rgba(124,92,252,0.15); border-color: rgba(124,92,252,0.4); color: var(--accent);
+}
+.conv-tag-clear {
+  align-self: flex-start; padding: 2px 8px; font-size: 10px;
+}
+
 .conv-input {
   flex: 1;
   padding: 8px 10px;
@@ -109,9 +165,17 @@
 }
 
 .conv-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   font-size: 10px;
   color: var(--text3);
   margin-top: 2px;
+}
+.conv-item-date {
+  font-size: 9px;
+  color: var(--text3);
+  opacity: 0.7;
 }
 
 .conv-delete {
@@ -411,6 +475,7 @@
 
 /* Input */
 .query-form { display: flex; flex-direction: column; gap: 7px; }
+
 .input-wrapper {
   display: flex; align-items: flex-start; gap: 10px;
   background: rgba(13,18,32,0.8); backdrop-filter: blur(20px);

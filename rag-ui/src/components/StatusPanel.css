@@ -40,7 +40,7 @@
 .sp-free-tag { padding: 2px 7px; background: rgba(61,255,160,0.1); color: var(--success); border: 1px solid rgba(61,255,160,0.2); border-radius: 10px; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; }
 
 /* ── Status grid ── */
-.status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
 
 .sc {
   background: rgba(13,18,32,0.7); backdrop-filter: blur(10px);

@@ -57,8 +57,12 @@ class VectorStore {
    *   similarity = 1 - (distance / 2)
    *
    * Typical good matches score 0.55–0.85 with nomic-embed-text.
+   *
+   * @param {number[]} queryEmbedding - The query embedding vector
+   * @param {number} nResults - Number of results to return
+   * @param {string[]} tags - Optional tags to filter by (AND logic)
    */
-  async query(queryEmbedding, nResults = 5) {
+  async query(queryEmbedding, nResults = 5, tags = null) {
     await this.ensureInit();
 
     const count = await this.collection.count();
@@ -70,15 +74,17 @@ class VectorStore {
     // Can't request more results than exist
     const safeN = Math.min(nResults, count);
 
-    const results = await this.collection.query({
+    const queryParams = {
       queryEmbeddings: [queryEmbedding],
       nResults: safeN,
       include: ['documents', 'metadatas', 'distances']
-    });
+    };
+
+    const results = await this.collection.query(queryParams);
 
     if (!results.documents?.[0]?.length) return [];
 
-    const mapped = results.documents[0].map((doc, i) => {
+    let mapped = results.documents[0].map((doc, i) => {
       const distance = results.distances[0][i];
       // Correct cosine conversion: distance is in [0,2], similarity in [0,1]
       const relevanceScore = Math.max(0, 1 - (distance / 2));
@@ -89,6 +95,16 @@ class VectorStore {
         relevanceScore
       };
     });
+
+    // Filter by tags after retrieval (AND logic — chunk's document must have ALL tags)
+    if (tags && tags.length > 0) {
+      mapped = mapped.filter(chunk => {
+        const chunkTags = chunk.metadata?.tags || '';
+        const tagList = chunkTags.split(',').map(t => t.trim().toLowerCase());
+        return tags.every(tag => tagList.includes(tag.toLowerCase()));
+      });
+      logger.info(`[VectorStore] Tag filter: ${tags.join(', ')} → ${mapped.length} chunks remaining`);
+    }
 
     // Log scores so we can tune MIN_RELEVANCE_SCORE
     const scoreList = mapped.map(c =>
@@ -126,7 +142,7 @@ class VectorStore {
     return { totalChunks: count, collection: COLLECTION_NAME };
   }
 
-  async listDocuments() {
+  async listDocuments(tagsFilter = null) {
     await this.ensureInit();
     const count = await this.collection.count();
     if (count === 0) return [];
@@ -145,12 +161,83 @@ class VectorStore {
           filename: meta.filename,
           fileType: meta.fileType,
           uploadedAt: meta.uploadedAt,
+          tags: meta.tags ? meta.tags.split(',').filter(t => t.trim()) : [],
           chunkCount: 0
         };
       }
       docs[meta.documentId].chunkCount++;
     }
-    return Object.values(docs);
+
+    let docList = Object.values(docs);
+
+    // Filter by tags if provided (AND logic — document must have ALL tags)
+    if (tagsFilter && tagsFilter.length > 0) {
+      docList = docList.filter(doc =>
+        tagsFilter.every(tag => doc.tags.includes(tag))
+      );
+    }
+
+    return docList;
+  }
+
+  /**
+   * Get all unique tags across all documents.
+   * @returns {string[]} Array of unique tag strings
+   */
+  async getUniqueTags() {
+    await this.ensureInit();
+    const count = await this.collection.count();
+    if (count === 0) return [];
+
+    const results = await this.collection.get({
+      include: ['metadatas'],
+      limit: 10000
+    });
+
+    const tagSet = new Set();
+    for (const meta of results.metadatas) {
+      if (meta?.tags) {
+        meta.tags.split(',').forEach(t => {
+          const trimmed = t.trim();
+          if (trimmed) tagSet.add(trimmed);
+        });
+      }
+    }
+
+    return Array.from(tagSet).sort();
+  }
+
+  /**
+   * Update tags for all chunks of a document.
+   * @param {string} documentId
+   * @param {string[]} tags
+   */
+  async updateTags(documentId, tags) {
+    await this.ensureInit();
+    const tagsString = tags.join(',');
+
+    // Get all chunks for this document
+    const results = await this.collection.get({
+      where: { documentId },
+      include: ['metadatas']
+    });
+
+    if (!results.ids || results.ids.length === 0) {
+      throw new Error(`Document ${documentId} not found`);
+    }
+
+    // Update metadata for each chunk
+    const newMetadatas = results.metadatas.map(meta => ({
+      ...meta,
+      tags: tagsString
+    }));
+
+    await this.collection.update({
+      ids: results.ids,
+      metadatas: newMetadatas
+    });
+
+    logger.info(`[VectorStore] Updated tags for document ${documentId}: ${tagsString}`);
   }
 }
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { MessageSquare, Plus, Trash2, Send, PanelLeftOpen, PanelLeftClose, PanelRight, Bot, AlertTriangle, User, FileText, Zap, Eraser } from 'lucide-react';
+import { MessageSquare, Plus, Trash2, Send, PanelLeftOpen, PanelLeftClose, PanelRight, Bot, AlertTriangle, User, FileText, Zap, Eraser, Tag, X } from 'lucide-react';
 import { ragApi } from '../api';
 import './QueryPanel.css';
 
@@ -28,13 +28,35 @@ export default function QueryPanel({ history, setHistory }) {
     return true;
   });
   const [newSessionTitle, setNewSessionTitle] = useState('');
+  const [availableTags, setAvailableTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
   const bottomRef = useRef(null);
   const sessionsLoadedRef = useRef(false);
 
-  // Load sessions on mount
+  // Load sessions and tags on mount
   useEffect(() => {
     loadSessions();
+    loadTags();
   }, []);
+
+  async function loadTags() {
+    try {
+      const data = await ragApi.getTags();
+      setAvailableTags(data.tags || []);
+    } catch (err) {
+      console.warn('Failed to load tags:', err.message);
+    }
+  }
+
+  function toggleTag(tag) {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  }
+
+  function clearSelectedTags() {
+    setSelectedTags([]);
+  }
 
   // Create initial session only after sessions have loaded AND there are truly none
   useEffect(() => {
@@ -67,6 +89,15 @@ export default function QueryPanel({ history, setHistory }) {
     }
   }
 
+  // Update session message count when history changes
+  useEffect(() => {
+    if (currentSessionId && history.length > 0) {
+      setSessions(s => s.map(sess =>
+        sess.id === currentSessionId ? { ...sess, messageCount: history.length } : sess
+      ));
+    }
+  }, [history, currentSessionId]);
+
   async function loadSessionMessages(sessionId) {
     try {
       const r = await ragApi.getSession(sessionId, 100, 0);
@@ -92,7 +123,9 @@ export default function QueryPanel({ history, setHistory }) {
     try {
       const title = newSessionTitle.trim() || `Conversation ${new Date().toLocaleTimeString()}`;
       const session = await ragApi.createSession(title);
-      setSessions(s => [session, ...s]);
+      // Add createdAt timestamp for display
+      const sessionWithDate = { ...session, createdAt: session.createdAt || new Date().toISOString() };
+      setSessions(s => [sessionWithDate, ...s]);
       setCurrentSessionId(session.id);
       setHistory([]);
       setNewSessionTitle('');
@@ -164,7 +197,7 @@ export default function QueryPanel({ history, setHistory }) {
 
     try {
       if (asyncMode) {
-        const job = await ragApi.queryAsync(q);
+        const job = await ragApi.queryAsync(q, { tags: selectedTags.length > 0 ? selectedTags : undefined });
         const assistantMsg = { type: 'assistant', text: null, jobId: job.jobId, loading: true, ts: new Date() };
         setHistory(h => [...h, assistantMsg]);
         // Save to Redis
@@ -175,7 +208,7 @@ export default function QueryPanel({ history, setHistory }) {
         }
         pollJob(job.jobId);
       } else {
-        const result = await ragApi.query(q, { includeChunks: true });
+        const result = await ragApi.query(q, { includeChunks: true, tags: selectedTags.length > 0 ? selectedTags : undefined });
         
         // Auto-name session if it's still generic on first query
         if (currentSessionId && sessions.length > 0) {
@@ -319,6 +352,30 @@ export default function QueryPanel({ history, setHistory }) {
               </button>
             </div>
 
+            {/* Tag selector in sidebar */}
+            {availableTags.length > 0 && (
+              <div className="conv-tag-selector">
+                <div className="conv-tag-label"><Tag size={12} /> Filter by tags</div>
+                <div className="conv-tag-chips">
+                  {availableTags.map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className={`conv-tag-chip ${selectedTags.includes(tag) ? 'active' : ''}`}
+                      onClick={() => toggleTag(tag)}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+                {selectedTags.length > 0 && (
+                  <button type="button" className="btn btn-ghost btn-xs conv-tag-clear" onClick={clearSelectedTags}>
+                    <X size={10} /> Clear
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="conv-list">
               {sessionsLoading ? (
                 <div className="conv-empty">Loading...</div>
@@ -333,7 +390,14 @@ export default function QueryPanel({ history, setHistory }) {
                   >
                     <div className="conv-item-text">
                       <div className="conv-item-title">{session.title}</div>
-                      <div className="conv-item-meta">{session.messageCount || 0} msgs</div>
+                      <div className="conv-item-meta">
+                        <span>{session.messageCount || 0} msgs</span>
+                        {session.createdAt && (
+                          <span className="conv-item-date">
+                            {new Date(session.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <button
                       className="btn-icon conv-delete"

@@ -47,6 +47,19 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
 
   useEffect(() => { loadAll(); loadLogs(); }, [loadAll]);
 
+  // Poll queue metrics every 5 seconds for realtime updates
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const data = await ragApi.getInfo();
+        if (data?.queue) {
+          setInfo(prev => prev ? { ...prev, queue: data.queue } : data);
+        }
+      } catch (_) { /* silent fail for polling */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   async function runHealthcheck() {
     setHcLoading(true);
     setHealthcheck(null);
@@ -203,7 +216,6 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
           detail={diagLoading ? 'Checking…' : or?.status === 'ok' ? 'Connected' : or?.error ?? 'Not connected'} />
         <StatusCard title="Vector Store" status={vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={`${vs?.totalChunks ?? 0} chunks indexed`} />
         <StatusCard title="Cache"        status={cache ? 'online' : 'unknown'} icon={<Zap size={15} />} detail={cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
-        <StatusCard title="Queue"        status={q ? 'online' : 'unknown'} icon={<Clock size={15} />} detail={q ? `${q.waiting}w · ${q.active}a · ${q.completed} done` : 'Unavailable'} />
       </div>
 
       {/* ── Active Model Card ── */}
