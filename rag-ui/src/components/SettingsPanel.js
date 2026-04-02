@@ -237,6 +237,17 @@ export default function SettingsPanel({ onRefresh }) {
     }
   }
 
+  async function deleteBackup(filename) {
+    if (!window.confirm(`Delete backup "${filename}"? This cannot be undone.`)) return;
+    try {
+      await ragApi.deleteBackup(filename);
+      toast.success('Backup deleted');
+      await loadBackups();
+    } catch (err) {
+      toast.error('Failed to delete backup: ' + err.message);
+    }
+  }
+
   if (loading) return (
     <div className="settings-loading">
       <span className="spinner-lg" /> Loading settings…
@@ -474,9 +485,14 @@ export default function SettingsPanel({ onRefresh }) {
                       <div className="backup-name">{b.filename}</div>
                       <div className="backup-meta">{(b.size / 1024 / 1024).toFixed(1)} MB · {new Date(b.created).toLocaleString()}</div>
                     </div>
-                    <button className="btn btn-ghost btn-xs" onClick={() => restoreBackup(b.filename)} disabled={restoring}>
-                      {restoring ? 'Restoring…' : <><Upload size={12} /> Restore</>}
-                    </button>
+                    <div className="backup-actions">
+                      <button className="btn btn-ghost btn-xs" onClick={() => restoreBackup(b.filename)} disabled={restoring}>
+                        {restoring ? 'Restoring…' : <><Upload size={12} /> Restore</>}
+                      </button>
+                      <button className="btn btn-danger btn-xs backup-delete" onClick={() => deleteBackup(b.filename)} title="Delete backup">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

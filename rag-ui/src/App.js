@@ -23,6 +23,7 @@ function AuthenticatedApp() {
   const [serverOnline, setServerOnline] = useState(null);
   const [info,         setInfo]         = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isQueryLoading, setIsQueryLoading] = useState(false);
 
   // ── Persistent chat history — lives here so tab switches don't reset it ──
   const [chatHistory, setChatHistory] = useState([]);
@@ -108,7 +109,10 @@ function AuthenticatedApp() {
           >
             <span className="tab-icon">{t.icon}</span>
             {t.label}
-            {t.id === 'query' && chatHistory.length > 0 && activeTab !== 'query' && (
+            {t.id === 'query' && isQueryLoading && (
+              <span className="tab-processing-dot" title="Processing query..." />
+            )}
+            {t.id === 'query' && chatHistory.length > 0 && activeTab !== 'query' && !isQueryLoading && (
               <span className="tab-unread" />
             )}
           </button>
@@ -118,7 +122,7 @@ function AuthenticatedApp() {
       {/* ── Content — all panels always mounted, hidden via CSS to preserve state ── */}
       <main className="main">
         <div style={{ display: activeTab === 'query'     ? 'contents' : 'none' }}>
-          <QueryPanel history={chatHistory} setHistory={setChatHistory} />
+          <QueryPanel history={chatHistory} setHistory={setChatHistory} onLoadingChange={setIsQueryLoading} />
         </div>
         <div style={{ display: activeTab === 'documents' ? 'contents' : 'none' }}>
           <DocumentsPanel onRefresh={checkHealth} />
@@ -144,8 +148,15 @@ function AuthenticatedApp() {
 }
 
 function AppInner() {
-  const { isAuthenticated, checking } = useAuth();
+  const { isAuthenticated, checking, justLoggedIn } = useAuth();
   if (checking) {
+    return (
+      <div className="app-loading">
+        <div className="app-loading-spinner" />
+      </div>
+    );
+  }
+  if (justLoggedIn) {
     return (
       <div className="app-loading">
         <div className="app-loading-spinner" />

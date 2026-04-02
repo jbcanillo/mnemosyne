@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
-import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, Loader2, Inbox } from 'lucide-react';
+import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, Loader2, Inbox, Tag, X, Edit2 } from 'lucide-react';
 import { ragApi } from '../api';
 import './DocumentsPanel.css';
 
@@ -12,16 +12,100 @@ const POLL_TIMEOUT  = 5 * 60 * 1000; // give up after 5 min
 export default function DocumentsPanel({ onRefresh }) {
   const [documents, setDocuments] = useState([]);
   const [uploads, setUploads]     = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
+  const [filterTags, setFilterTags] = useState([]);
+  const [editingDocId, setEditingDocId] = useState(null);
+  const [editTags, setEditTags] = useState([]);
+  const [editTagInput, setEditTagInput] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { fetchDocuments(); }, []);
+  useEffect(() => { fetchDocuments(); fetchTags(); }, []);
 
   async function fetchDocuments() {
     try {
-      const data = await ragApi.listDocuments();
+      const data = await ragApi.listDocuments(filterTags.length > 0 ? filterTags : null);
       setDocuments(data.documents || []);
     } catch (err) {
       toast.error('Failed to load documents: ' + err.message);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  async function fetchTags() {
+    try {
+      const data = await ragApi.getTags();
+      setAvailableTags(data.tags || []);
+    } catch (err) {
+      console.warn('Failed to load tags:', err.message);
+    }
+  }
+
+  // ── Tag helpers ──────────────────────────────────────────────────
+  function addTag(tag, target, setTarget) {
+    const normalized = tag.trim().toLowerCase();
+    if (normalized && !target.includes(normalized)) {
+      setTarget([...target, normalized]);
+    }
+  }
+
+  function removeTag(tag, target, setTarget) {
+    setTarget(target.filter(t => t !== tag));
+  }
+
+  function handleEditTagInputKeyDown(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(editTagInput, editTags, setEditTags);
+      setEditTagInput('');
+    } else if (e.key === 'Backspace' && !editTagInput && editTags.length > 0) {
+      removeTag(editTags[editTags.length - 1], editTags, setEditTags);
+    }
+  }
+
+  // ── Filter handling ─────────────────────────────────────────────
+  async function toggleFilterTag(tag) {
+    const newFilter = filterTags.includes(tag)
+      ? filterTags.filter(t => t !== tag)
+      : [...filterTags, tag];
+    setFilterTags(newFilter);
+    try {
+      const data = await ragApi.listDocuments(newFilter.length > 0 ? newFilter : null);
+      setDocuments(data.documents || []);
+    } catch (err) {
+      toast.error('Failed to filter documents: ' + err.message);
+    }
+  }
+
+  function clearFilters() {
+    setFilterTags([]);
+    fetchDocuments();
+  }
+
+  // ── Tag editing for existing documents ──────────────────────────
+  function startEditTags(doc) {
+    setEditingDocId(doc.id);
+    setEditTags([...doc.tags]);
+    setEditTagInput('');
+  }
+
+  async function saveEditTags(docId) {
+    try {
+      await ragApi.updateDocumentTags(docId, editTags);
+      toast.success('Tags updated');
+      setEditingDocId(null);
+      await fetchDocuments();
+      await fetchTags();
+      onRefresh?.();
+    } catch (err) {
+      toast.error('Failed to update tags: ' + err.message);
+    }
+  }
+
+  function cancelEditTags() {
+    setEditingDocId(null);
+    setEditTags([]);
+    setEditTagInput('');
   }
 
   /**
@@ -91,6 +175,7 @@ export default function DocumentsPanel({ onRefresh }) {
       try {
         const result = await ragApi.uploadDocument(
           file,
+          [],
           p => setUploads(u => u.map(x => x.id === uid ? { ...x, progress: p } : x))
         );
 
@@ -198,14 +283,37 @@ export default function DocumentsPanel({ onRefresh }) {
         </div>
       )}
 
+      {/* Tag filter bar */}
+      {availableTags.length > 0 && (
+        <div className="tag-filter-bar">
+          <div className="tag-filter-label"><Tag size={14} /> Filter by tags:</div>
+          <div className="tag-filter-chips">
+            {availableTags.map(tag => (
+              <button
+                key={tag}
+                className={`tag-filter-chip ${filterTags.includes(tag) ? 'active' : ''}`}
+                onClick={() => toggleFilterTag(tag)}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+          {filterTags.length > 0 && (
+            <button className="btn btn-ghost btn-xs" onClick={clearFilters}>
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Documents table */}
       <div className="docs-table-wrap">
-        <div className="docs-table-header">
-          <span>{documents.length} document{documents.length !== 1 ? 's' : ''} in knowledge base</span>
-          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={fetchDocuments}>
-            ↻ Refresh
-          </button>
-        </div>
+          <div className="docs-table-header">
+            <span>{documents.length} document{documents.length !== 1 ? 's' : ''} in knowledge base</span>
+            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={fetchDocuments}>
+              ↻ Refresh
+            </button>
+          </div>
 
         {documents.length === 0
           ? <div className="empty-state">
@@ -215,7 +323,7 @@ export default function DocumentsPanel({ onRefresh }) {
           : (
             <table className="docs-table">
               <thead>
-                <tr><th>File</th><th>Type</th><th>Chunks</th><th>Uploaded</th><th></th></tr>
+                <tr><th>File</th><th>Type</th><th>Chunks</th><th>Tags</th><th>Uploaded</th><th></th></tr>
               </thead>
               <tbody>
                 {documents.map(doc => (
@@ -226,15 +334,62 @@ export default function DocumentsPanel({ onRefresh }) {
                     </td>
                     <td><span className="badge badge-blue">{doc.fileType?.toUpperCase()}</span></td>
                     <td><span className="badge badge-gray">{doc.chunkCount} chunks</span></td>
+                    <td className="doc-tags-cell">
+                      {editingDocId === doc.id ? (
+                        <div className="tag-edit-container">
+                          <div className="tag-input-wrapper small">
+                            {editTags.map(tag => (
+                              <span key={tag} className="tag-chip small">
+                                {tag}
+                                <button type="button" className="tag-remove" onClick={() => removeTag(tag, editTags, setEditTags)}>
+                                  <X size={10} />
+                                </button>
+                              </span>
+                            ))}
+                            <input
+                              type="text"
+                              className="tag-input small"
+                              placeholder="Add tag..."
+                              value={editTagInput}
+                              onChange={e => setEditTagInput(e.target.value)}
+                              onKeyDown={handleEditTagInputKeyDown}
+                              list="available-tags-list"
+                            />
+                          </div>
+                          <div className="tag-edit-actions">
+                            <button className="btn btn-sm btn-primary" onClick={() => saveEditTags(doc.id)}>Save</button>
+                            <button className="btn btn-sm btn-ghost" onClick={cancelEditTags}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="doc-tags-display">
+                          {doc.tags && doc.tags.length > 0 ? (
+                            doc.tags.map(tag => (
+                              <span key={tag} className="tag-chip small">{tag}</span>
+                            ))
+                          ) : (
+                            <span className="no-tags">No tags</span>
+                          )}
+                          <button
+                            className="btn-icon btn-ghost tag-edit-btn"
+                            onClick={() => startEditTags(doc)}
+                            title="Edit tags"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </td>
                     <td className="doc-date">
                       {doc.uploadedAt
                         ? new Date(doc.uploadedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
                         : '—'}
                     </td>
                     <td>
-                      <button className="btn btn-danger" style={{ fontSize: 11, padding: '4px 10px' }}
-                        onClick={() => handleDelete(doc)}>
-                        Remove
+                      <button className="btn btn-danger btn-sm doc-delete-btn"
+                        onClick={() => handleDelete(doc)}
+                        title="Remove document">
+                        <Trash2 size={16} />
                       </button>
                     </td>
                   </tr>

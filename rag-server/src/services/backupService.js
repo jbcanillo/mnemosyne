@@ -137,6 +137,24 @@ class BackupService {
       return 0;
     }
   }
+
+  /**
+   * Delete a backup file
+   */
+  async deleteBackup(filename) {
+    try {
+      const backupPath = path.join(this.backupDir, filename);
+      if (!fs.existsSync(backupPath)) {
+        throw new Error(`Backup file not found: ${filename}`);
+      }
+      fs.unlinkSync(backupPath);
+      logger.info(`[Backup] Deleted: ${filename}`);
+      return { success: true, message: `Backup deleted: ${filename}` };
+    } catch (err) {
+      logger.error('[Backup] Delete failed:', err.message);
+      throw new Error(`Delete failed: ${err.message}`);
+    }
+  }
 }
 
 module.exports = new BackupService();

@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [username, setUsername] = useState(() => sessionStorage.getItem('rag_user'));
   const [expiresAt, setExpiresAt] = useState(null);
   const [checking, setChecking]  = useState(true); // verifying stored token on mount
+  const [justLoggedIn, setJustLoggedIn] = useState(false); // show loading screen after login
 
   // On mount: verify any stored token is still valid
   useEffect(() => {
@@ -38,9 +39,12 @@ export function AuthProvider({ children }) {
     setToken(data.token);
     setUsername(data.username);
     setExpiresAt(data.expiresAt);
+    setJustLoggedIn(true);
     // sessionStorage: cleared when tab closes (safer than localStorage)
     sessionStorage.setItem('rag_token', data.token);
     sessionStorage.setItem('rag_user', data.username);
+    // Show loading screen for 1.5s after login
+    setTimeout(() => setJustLoggedIn(false), 1500);
     return data;
   }, []);
 
@@ -54,7 +58,7 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   return (
-    <AuthContext.Provider value={{ token, username, expiresAt, checking, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ token, username, expiresAt, checking, justLoggedIn, login, logout, isAuthenticated: !!token }}>
       {children}
     </AuthContext.Provider>
   );

@@ -63,16 +63,24 @@ export const ragApi = {
     api.get(`/query/status/${jobId}`),
 
   // ── Documents ────────────────────────────────────────────────────
-  uploadDocument: (file, onProgress) => {
+  uploadDocument: (file, tags = [], onProgress) => {
     const form = new FormData();
     form.append('file', file);
+    if (tags.length > 0) {
+      form.append('tags', tags.join(','));
+    }
     return api.post('/documents/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: e => onProgress?.(Math.round((e.loaded * 100) / e.total))
     });
   },
 
-  listDocuments:    () => api.get('/documents'),
+  listDocuments:    (tags = null) => {
+    const params = tags && tags.length > 0 ? `?tags=${encodeURIComponent(tags.join(','))}` : '';
+    return api.get(`/documents${params}`);
+  },
+  getTags:          () => api.get('/documents/tags'),
+  updateDocumentTags: (id, tags) => api.put(`/documents/${id}/tags`, { tags }),
   getIngestStatus:  (jobId) => api.get(`/documents/ingest-status/${jobId}`),
   deleteDocument:   (id) => api.delete(`/documents/${id}`),
   getDocumentStats: () => api.get('/documents/stats'),
@@ -105,6 +113,7 @@ export const ragApi = {
   createBackup:   () => api.post('/backup/create'),
   listBackups:    () => api.get('/backup/list'),
   restoreBackup:  (filename) => api.post('/backup/restore', { filename }),
+  deleteBackup:   (filename) => api.delete(`/backup/${encodeURIComponent(filename)}`),
 
   // ── Sessions / Conversations ───────────────────────────────────
   createSession:  (title) => api.post('/sessions', { title }),

@@ -119,8 +119,10 @@ router.get('/query/test', eitherAuth, async (req, res) => {
 router.post('/documents/upload',             requireSession, uploadMiddleware.single('file'), documentController.upload);
 router.get('/documents',                     requireSession, documentController.list);
 router.get('/documents/stats',               requireSession, documentController.stats);
+router.get('/documents/tags',                requireSession, documentController.getTags);
 router.get('/documents/ingest-status/:jobId',requireSession, documentController.ingestStatus);
 router.delete('/documents/:id',              requireSession, documentController.remove);
+router.put('/documents/:id/tags',            requireSession, documentController.updateTags);
 
 // ── Admin (Session only) ──────────────────────────────────────────────
 router.delete('/cache',            requireSession, queryController.clearCache);
@@ -308,6 +310,18 @@ router.post('/backup/restore', requireSession, async (req, res) => {
   try {
     const backup = require('./services/backupService');
     const result = await backup.restoreBackup(filename);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/backup/:filename', requireSession, async (req, res) => {
+  const { filename } = req.params;
+  if (!filename) return res.status(400).json({ error: 'filename required' });
+  try {
+    const backup = require('./services/backupService');
+    const result = await backup.deleteBackup(filename);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

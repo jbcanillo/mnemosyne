@@ -11,6 +11,85 @@
 .dropzone-text.active { color: var(--accent); }
 .dropzone-hint { font-size: 12px; color: var(--text3); }
 
+/* ── Tag input ── */
+.tag-input-container { display: flex; flex-direction: column; gap: 4px; }
+.tag-input-wrapper {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 8px 10px; background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border2); border-radius: var(--radius);
+  min-height: 38px; cursor: text;
+}
+.tag-input-wrapper.small {
+  padding: 4px 6px; min-height: 30px;
+}
+.tag-input {
+  flex: 1; min-width: 100px; background: transparent; border: none; outline: none;
+  color: var(--text); font-size: 13px; font-family: var(--sans);
+}
+.tag-input.small { min-width: 60px; font-size: 11px; }
+.tag-input::placeholder { color: var(--text3); }
+
+/* ── Tag chips ── */
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; background: rgba(252, 169, 92, 0.15); border: 1px solid rgba(252, 169, 92, 0.3);
+  border-radius: 12px; font-size: 11px; font-weight: 500; color: #fca95c;
+  white-space: nowrap;
+}
+.tag-chip.small {
+  padding: 2px 6px; font-size: 10px;
+}
+.tag-remove {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; color: #fca95c; cursor: pointer;
+  padding: 0; margin-left: 2px; opacity: 0.7; transition: opacity 0.15s;
+}
+.tag-remove:hover { opacity: 1; }
+
+/* ── Tag filter bar ── */
+.tag-filter-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 10px 16px; background: rgba(8,12,20,0.6); backdrop-filter: blur(20px);
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.tag-filter-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--text3); white-space: nowrap;
+}
+.tag-filter-chips {
+  display: flex; flex-wrap: wrap; gap: 6px; flex: 1;
+}
+.tag-filter-chip {
+  padding: 4px 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--border2);
+  border-radius: 14px; font-size: 11px; font-weight: 500; color: var(--text3);
+  cursor: pointer; transition: all 0.15s;
+}
+.tag-filter-chip:hover {
+  background: rgba(255,255,255,0.08); border-color: var(--border);
+}
+.tag-filter-chip.active {
+  background: rgba(124,92,252,0.15); border-color: rgba(124,92,252,0.4); color: var(--accent);
+}
+
+/* ── Document tags cell ── */
+.doc-tags-cell { min-width: 180px; }
+.doc-tags-display {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+}
+.no-tags {
+  font-size: 11px; color: var(--text3); font-style: italic;
+}
+.tag-edit-btn {
+  padding: 2px; opacity: 0.5; transition: opacity 0.15s;
+}
+.tag-edit-btn:hover { opacity: 1; }
+.tag-edit-container {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.tag-edit-actions {
+  display: flex; gap: 6px;
+}
+
 .uploads-list { display: flex; flex-direction: column; gap: 8px; }
 .upload-item { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; background: rgba(8,12,20,0.6); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: var(--radius); }
 .upload-info { display: flex; justify-content: space-between; align-items: center; }
@@ -33,6 +112,17 @@
 .file-icon     { font-size: 18px; }
 .doc-filename  { color: var(--text); font-weight: 500; word-break: break-all; }
 .doc-date      { color: var(--text3); font-size: 12px; white-space: nowrap; }
+.doc-delete-btn {
+  padding: 6px;
+  color: var(--danger);
+  opacity: 0.6;
+  transition: all 0.15s;
+}
+.doc-delete-btn:hover {
+  opacity: 1;
+  background: rgba(255,71,87,0.1);
+  border-radius: 6px;
+}
 
 /* ── Upload item states ── */
 .upload-item-done  { border-color: rgba(46,213,115,0.3) !important; }

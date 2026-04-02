@@ -35,6 +35,50 @@ const options = {
             chunkOverlap:      { type: 'integer', example: 50 },
             cacheTtl:          { type: 'integer', example: 3600 }
           }
+        },
+        Document: {
+          type: 'object',
+          properties: {
+            id:         { type: 'string', description: 'Document UUID' },
+            filename:   { type: 'string' },
+            fileType:   { type: 'string', description: 'File extension without dot' },
+            chunkCount: { type: 'integer' },
+            uploadedAt: { type: 'string', format: 'date-time' },
+            tags:       { type: 'array', items: { type: 'string' }, description: 'Tags assigned to this document' }
+          }
+        },
+        Session: {
+          type: 'object',
+          properties: {
+            id:           { type: 'string', description: 'Session UUID' },
+            title:        { type: 'string' },
+            messageCount: { type: 'integer' },
+            createdAt:    { type: 'string', format: 'date-time' }
+          }
+        },
+        Backup: {
+          type: 'object',
+          properties: {
+            filename:  { type: 'string' },
+            size:      { type: 'integer', description: 'Size in bytes' },
+            createdAt: { type: 'string', format: 'date-time' }
+          }
+        },
+        Model: {
+          type: 'object',
+          properties: {
+            id:     { type: 'string' },
+            name:   { type: 'string' },
+            active: { type: 'boolean' }
+          }
+        },
+        Usage: {
+          type: 'object',
+          properties: {
+            currentModel:  { type: 'string' },
+            embeddingModel:{ type: 'string' },
+            tokenUsage:    { type: 'object', description: 'Token usage statistics' }
+          }
         }
       }
     },
@@ -45,7 +89,9 @@ const options = {
       { name: 'Documents', description: 'Knowledge base document management' },
       { name: 'Models',    description: 'LLM model management' },
       { name: 'Settings',  description: 'Runtime configuration (API keys, model, tuning)' },
-      { name: 'System',    description: 'Health, diagnostics, cache, vector store' }
+      { name: 'System',    description: 'Health, diagnostics, cache, vector store' },
+      { name: 'Sessions',  description: 'Conversation sessions management' },
+      { name: 'Backups',   description: 'Backup and restore operations' }
     ],
     paths: {
       // ── AUTH ──────────────────────────────────────────────────────────
@@ -90,7 +136,10 @@ const options = {
             content: { 'application/json': { schema: { type: 'object', required: ['query'], properties: {
               query:  { type: 'string', example: 'What documents are in the knowledge base?' },
               async:  { type: 'boolean', default: false, description: 'If true, returns a jobId to poll instead of waiting' },
-              options:{ type: 'object', properties: { topK: { type: 'integer', default: 5 } } }
+              options:{ type: 'object', properties: {
+                topK: { type: 'integer', default: 5 },
+                tags: { type: 'array', items: { type: 'string' }, description: 'Filter query to documents with these tags (AND logic)' }
+              } }
             } } } }
           },
           responses: {
@@ -147,7 +196,10 @@ const options = {
           tags: ['Documents'], summary: 'Upload a document to the knowledge base',
           requestBody: {
             required: true,
-            content: { 'multipart/form-data': { schema: { type: 'object', required: ['file'], properties: { file: { type: 'string', format: 'binary', description: 'PDF, DOCX, XLSX, CSV, MD, TXT (max 50 MB)' } } } } }
+            content: { 'multipart/form-data': { schema: { type: 'object', required: ['file'], properties: {
+              file: { type: 'string', format: 'binary', description: 'PDF, DOCX, XLSX, CSV, MD, TXT (max 50 MB)' },
+              tags: { type: 'string', description: 'Comma-separated tags (e.g., "finance,hr,policy")' }
+            } } } }
           },
           responses: {
             202: { description: 'Upload accepted, processing in background', content: { 'application/json': { schema: { type: 'object', properties: { documentId: { type: 'string' }, jobId: { type: 'string' }, filename: { type: 'string' }, status: { type: 'string' } } } } } },
@@ -158,10 +210,35 @@ const options = {
       '/documents': {
         get: {
           tags: ['Documents'], summary: 'List all indexed documents',
+          parameters: [
+            { name: 'tags', in: 'query', required: false, schema: { type: 'string' }, description: 'Comma-separated tags to filter by (AND logic)' }
+          ],
           responses: {
             200: { description: 'Document list', content: { 'application/json': { schema: { type: 'object', properties: {
-              documents: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, filename: { type: 'string' }, fileType: { type: 'string' }, chunkCount: { type: 'integer' }, uploadedAt: { type: 'string' } } } },
+              documents: { type: 'array', items: { '$ref': '#/components/schemas/Document' } },
               total: { type: 'integer' }
+            } } } } }
+          }
+        }
+      },
+      '/documents/stats': {
+        get: {
+          tags: ['Documents'], summary: 'Get document statistics',
+          responses: {
+            200: { description: 'Stats', content: { 'application/json': { schema: { type: 'object', properties: {
+              totalChunks: { type: 'integer' },
+              collection: { type: 'string' },
+              totalDocuments: { type: 'integer' }
+            } } } } }
+          }
+        }
+      },
+      '/documents/tags': {
+        get: {
+          tags: ['Documents'], summary: 'List all unique tags across documents',
+          responses: {
+            200: { description: 'Tag list', content: { 'application/json': { schema: { type: 'object', properties: {
+              tags: { type: 'array', items: { type: 'string' } }
             } } } } }
           }
         }
@@ -178,6 +255,23 @@ const options = {
           tags: ['Documents'], summary: 'Remove a document and all its chunks',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Document ID (UUID)' }],
           responses: { 200: { description: 'Removed' }, 400: { description: 'Invalid ID' } }
+        }
+      },
+      '/documents/{id}/tags': {
+        put: {
+          tags: ['Documents'], summary: 'Update tags for a document',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Document ID (UUID)' }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', required: ['tags'], properties: {
+              tags: { type: 'array', items: { type: 'string' }, description: 'New tags for this document' }
+            } } } }
+          },
+          responses: {
+            200: { description: 'Tags updated', content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } } } } } },
+            400: { description: 'Invalid request' },
+            404: { description: 'Document not found' }
+          }
         }
       },
 
@@ -204,6 +298,35 @@ const options = {
             200: { description: 'Switched', content: { 'application/json': { schema: { type: 'object', properties: { previous: { type: 'string' }, current: { type: 'string' } } } } } },
             400: { description: 'Invalid model ID' }
           }
+        }
+      },
+      '/models': {
+        post: {
+          tags: ['Models'], summary: 'Add a custom LLM model',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', required: ['id', 'name'], properties: {
+              id: { type: 'string', description: 'OpenRouter model ID' },
+              name: { type: 'string', description: 'Display name' }
+            } } } }
+          },
+          responses: {
+            200: { description: 'Model added', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Model' } } } },
+            400: { description: 'Invalid model ID' }
+          }
+        }
+      },
+      '/models/{id}': {
+        delete: {
+          tags: ['Models'], summary: 'Remove a custom LLM model',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Model ID' }],
+          responses: { 200: { description: 'Model removed' }, 404: { description: 'Model not found' } }
+        }
+      },
+      '/models/reset': {
+        post: {
+          tags: ['Models'], summary: 'Reset models to default list',
+          responses: { 200: { description: 'Models reset to defaults' } }
         }
       },
 
@@ -257,6 +380,157 @@ const options = {
         post: {
           tags: ['System'], summary: 'Wipe and recreate vector store collection',
           responses: { 200: { description: 'Collection reset — re-upload all documents' } }
+        }
+      },
+      '/usage': {
+        get: {
+          tags: ['System'], summary: 'Get token usage statistics',
+          responses: {
+            200: { description: 'Usage stats', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Usage' } } } }
+          }
+        },
+        delete: {
+          tags: ['System'], summary: 'Reset token usage statistics',
+          responses: { 200: { description: 'Usage stats reset' } }
+        }
+      },
+      '/logs': {
+        get: {
+          tags: ['System'], summary: 'Get server logs',
+          parameters: [
+            { name: 'lines', in: 'query', required: false, schema: { type: 'integer', default: 200 }, description: 'Number of log lines to return' }
+          ],
+          responses: { 200: { description: 'Server logs' } }
+        }
+      },
+
+      // ── SESSIONS ──────────────────────────────────────────────────────
+      '/sessions': {
+        post: {
+          tags: ['Sessions'], summary: 'Create a new conversation session',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', required: ['title'], properties: {
+              title: { type: 'string', description: 'Session title' }
+            } } } }
+          },
+          responses: {
+            200: { description: 'Session created', content: { 'application/json': { schema: { '$ref': '#/components/schemas/Session' } } } }
+          }
+        },
+        get: {
+          tags: ['Sessions'], summary: 'List all conversation sessions',
+          responses: {
+            200: { description: 'Session list', content: { 'application/json': { schema: { type: 'object', properties: {
+              sessions: { type: 'array', items: { '$ref': '#/components/schemas/Session' } }
+            } } } } }
+          }
+        }
+      },
+      '/sessions/{id}': {
+        get: {
+          tags: ['Sessions'], summary: 'Get session messages',
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+            { name: 'limit', in: 'query', required: false, schema: { type: 'integer', default: 50 } },
+            { name: 'offset', in: 'query', required: false, schema: { type: 'integer', default: 0 } }
+          ],
+          responses: {
+            200: { description: 'Session messages', content: { 'application/json': { schema: { type: 'object', properties: {
+              messages: { type: 'array', items: { type: 'object' } }
+            } } } } }
+          }
+        },
+        put: {
+          tags: ['Sessions'], summary: 'Update session title',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', required: ['title'], properties: {
+              title: { type: 'string' }
+            } } } }
+          },
+          responses: { 200: { description: 'Session updated' } }
+        },
+        delete: {
+          tags: ['Sessions'], summary: 'Delete a conversation session',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: { description: 'Session deleted' } }
+        }
+      },
+      '/sessions/{id}/messages': {
+        post: {
+          tags: ['Sessions'], summary: 'Add a message to a session',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', properties: {
+              type: { type: 'string', enum: ['user', 'assistant', 'error'] },
+              text: { type: 'string' },
+              sources: { type: 'array', items: { type: 'object' } },
+              fromCache: { type: 'boolean' },
+              relevantChunks: { type: 'integer' },
+              ts: { type: 'string', format: 'date-time' },
+              jobId: { type: 'string' }
+            } } } }
+          },
+          responses: { 200: { description: 'Message added' } }
+        }
+      },
+      '/sessions/{id}/clear': {
+        post: {
+          tags: ['Sessions'], summary: 'Clear all messages from a session',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: { description: 'Session cleared' } }
+        }
+      },
+
+      // ── BACKUPS ───────────────────────────────────────────────────────
+      '/backup/create': {
+        post: {
+          tags: ['Backups'], summary: 'Create a backup of ChromaDB and config',
+          responses: {
+            200: { description: 'Backup created', content: { 'application/json': { schema: { type: 'object', properties: {
+              filename: { type: 'string' },
+              size: { type: 'integer' },
+              message: { type: 'string' }
+            } } } } }
+          }
+        }
+      },
+      '/backup/list': {
+        get: {
+          tags: ['Backups'], summary: 'List all available backups',
+          responses: {
+            200: { description: 'Backup list', content: { 'application/json': { schema: { type: 'object', properties: {
+              backups: { type: 'array', items: { '$ref': '#/components/schemas/Backup' } }
+            } } } } }
+          }
+        }
+      },
+      '/backup/restore': {
+        post: {
+          tags: ['Backups'], summary: 'Restore from a backup',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', required: ['filename'], properties: {
+              filename: { type: 'string', description: 'Backup filename to restore' }
+            } } } }
+          },
+          responses: {
+            200: { description: 'Backup restored' },
+            400: { description: 'Invalid backup file' }
+          }
+        }
+      },
+      '/backup/{filename}': {
+        delete: {
+          tags: ['Backups'], summary: 'Delete a backup file',
+          parameters: [{ name: 'filename', in: 'path', required: true, schema: { type: 'string' }, description: 'Backup filename to delete' }],
+          responses: {
+            200: { description: 'Backup deleted' },
+            404: { description: 'Backup not found' }
+          }
         }
       }
     }

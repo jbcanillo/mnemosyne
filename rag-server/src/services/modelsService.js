@@ -30,14 +30,26 @@ const MODELS_CONFIG_KEY = 'config:models';
 
 /**
  * Initialize models list if empty — called on startup
+ * Adds the default model from OPENROUTER_MODEL env var if set
  */
 async function initialize() {
   try {
     const client = await getRedis();
     const exists = await client.exists(MODELS_CONFIG_KEY);
     if (!exists) {
-      logger.info('[ModelsService] No models configured — start with empty list');
-      await client.set(MODELS_CONFIG_KEY, JSON.stringify([]));
+      // Check if there's a default model in .env
+      const defaultModelId = process.env.OPENROUTER_MODEL;
+      if (defaultModelId && defaultModelId !== 'openrouter_model_name_here') {
+        const defaultModels = [{
+          id: defaultModelId,
+          name: defaultModelId.split('/').pop().replace(/:free$/, '').replace(/:.+$/, '')
+        }];
+        await client.set(MODELS_CONFIG_KEY, JSON.stringify(defaultModels));
+        logger.info(`[ModelsService] Initialized with default model from .env: ${defaultModelId}`);
+      } else {
+        logger.info('[ModelsService] No models configured — start with empty list');
+        await client.set(MODELS_CONFIG_KEY, JSON.stringify([]));
+      }
     }
   } catch (err) {
     logger.warn('[ModelsService] Init failed:', err.message);
