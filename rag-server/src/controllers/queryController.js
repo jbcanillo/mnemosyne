@@ -114,6 +114,12 @@ exports.query = async (req, res) => {
   const trimmedQuery = query.trim().substring(0, 1000);
 
   try {
+    // Log query details including session/tags from UI
+    const tags = options.tags ? `[${options.tags.join(', ')}]` : 'none';
+    const mode = isAsync ? 'async' : 'sync';
+    const user = req.user?.id || 'api-key';
+    logger.info(`[API] POST /query - User: ${user}, Mode: ${mode}, Query: "${trimmedQuery.substring(0, 60)}", Tags: ${tags}`);
+
     const cacheKey = cacheService.generateKey(trimmedQuery, options);
     const cached   = await cacheService.get(cacheKey);
     if (cached) {
@@ -123,11 +129,13 @@ exports.query = async (req, res) => {
 
     if (isAsync) {
       const job = await queueService.addQuery({ query: trimmedQuery, options });
+      logger.info(`[API] Query queued - JobID: ${job.id}`);
       return res.status(202).json({ jobId: job.id, status: 'queued' });
     }
 
     const result = await processRagQuery(trimmedQuery, options);
     await cacheService.set(cacheKey, result);
+    logger.info(`[API] Query completed - Results: ${result.relevantChunks} chunks, Sources: ${result.sources?.length || 0}`);
     return res.json({ ...result, query: trimmedQuery });
 
   } catch (err) {

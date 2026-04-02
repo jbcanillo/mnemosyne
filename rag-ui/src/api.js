@@ -121,7 +121,7 @@ export const ragApi = {
   getSession:     (sessionId, limit = 50, offset = 0) => 
     api.get(`/sessions/${sessionId}?limit=${limit}&offset=${offset}`),
   addMessage:     (sessionId, message) => api.post(`/sessions/${sessionId}/messages`, message),
-  updateSession:  (sessionId, title) => api.put(`/sessions/${sessionId}`, { title }),
+  updateSession:  (sessionId, data) => api.put(`/sessions/${sessionId}`, data),
   deleteSession:  (sessionId) => api.delete(`/sessions/${sessionId}`),
   clearSession:   (sessionId) => api.post(`/sessions/${sessionId}/clear`),
 };

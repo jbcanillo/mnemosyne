@@ -47,6 +47,7 @@ class SessionService {
         userId,
         title: title || 'New Conversation',
         created: new Date().toISOString(),
+        tags: [],
         messages: [],
         messageCount: 0
       };
@@ -187,6 +188,28 @@ class SessionService {
       return true;
     } catch (err) {
       logger.error('[Session] Update title failed:', err.message);
+      throw err;
+    }
+  }
+
+  /**
+   * Update session tags
+   */
+  async updateSessionTags(sessionId, tags = []) {
+    try {
+      if (!this.redis) throw new Error('Redis not available');
+
+      const data = await this.redis.get(`session:${sessionId}`);
+      if (data) {
+        const session = JSON.parse(data);
+        session.tags = tags || [];
+        session.modified = new Date().toISOString();
+        await this.redis.setex(`session:${sessionId}`, SESSION_TTL, JSON.stringify(session));
+        logger.info(`[Session] Updated tags for session ${sessionId}: [${tags.join(', ')}]`);
+      }
+      return true;
+    } catch (err) {
+      logger.error('[Session] Update tags failed:', err.message);
       throw err;
     }
   }
