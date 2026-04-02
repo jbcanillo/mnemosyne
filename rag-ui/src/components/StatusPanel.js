@@ -150,15 +150,13 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
       )}
 
       {/* ── Service health cards ── */}
-      {!diagLoading && (
-        <div className="status-grid">
-          <StatusCard title="Server"       status={serverOnline ? 'online' : 'offline'} icon={<Activity size={15} />} detail={serverOnline ? 'Healthy' : 'Unreachable'} />
-          <StatusCard title="OpenRouter"   status={or?.status === 'ok' ? 'online' : 'offline'} icon={<Globe size={15} />}
-            detail={or?.status === 'ok' ? 'Connected' : or?.error ?? 'Not connected'} />
-          <StatusCard title="Vector Store" status={vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={`${vs?.totalChunks ?? 0} chunks indexed`} />
-          <StatusCard title="Cache"        status={cache ? 'online' : 'unknown'} icon={<Zap size={15} />} detail={cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
-        </div>
-      )}
+      <div className="status-grid">
+        <StatusCard title="Server"       status={serverOnline ? 'online' : 'offline'} icon={<Activity size={15} />} detail={serverOnline ? 'Healthy' : 'Unreachable'} />
+        <StatusCard title="OpenRouter"   status={diagLoading ? 'loading' : or?.status === 'ok' ? 'online' : 'offline'} icon={<Globe size={15} />}
+          detail={diagLoading ? 'Checking…' : or?.status === 'ok' ? 'Connected' : or?.error ?? 'Not connected'} />
+        <StatusCard title="Vector Store" status={vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={`${vs?.totalChunks ?? 0} chunks indexed`} />
+        <StatusCard title="Cache"        status={cache ? 'online' : 'unknown'} icon={<Zap size={15} />} detail={cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
+      </div>
 
       {/* ── Active Model Card ── */}
       <div className="sp-section model-info-section">

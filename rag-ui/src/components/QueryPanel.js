@@ -417,7 +417,9 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
                       <div className="conv-item-title">
                         {session.title}
                         {processingSessions[session.id] && (
-                          <span className="conv-processing-dot" title="Processing query..." />
+                          <span className="conv-processing-dot" title="Processing query...">
+                            <span /><span /><span />
+                          </span>
                         )}
                       </div>
                       <div className="conv-item-meta">
@@ -430,7 +432,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
                       </div>
                     </div>
                     <button
-                      className="btn-icon conv-delete"
+                      className="btn-icon btn-danger btn-xs conv-delete"
                       onClick={e => deleteSession(session.id, e)}
                       title="Delete"
                     >
