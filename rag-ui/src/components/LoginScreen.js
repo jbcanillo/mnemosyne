@@ -27,6 +27,29 @@ export default function LoginScreen() {
     }
   }
 
+  // Show loading state if loading
+  if (loading) {
+    return (
+      <div className="login-page">
+        <div className="login-bg" aria-hidden="true">
+          <div className="bg-grid" />
+          <div className="bg-orb bg-orb-1" />
+          <div className="bg-orb bg-orb-2" />
+          <div className="bg-orb bg-orb-3" />
+        </div>
+        <div className="login-loading-container">
+          <div className="login-loading-logo">
+            <img src="/logo.svg" alt="Loading" className="login-loading-img" />
+          </div>
+          <div className="login-loading-text">Signing in...</div>
+          <div className="login-progress-bar">
+            <div className="login-progress-fill" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="login-page">
       <div className="login-bg" aria-hidden="true">
@@ -99,11 +122,7 @@ export default function LoginScreen() {
             type="submit"
             disabled={loading || !username.trim() || !password}
           >
-            {loading ? (
-              <span className="login-spinner" />
-            ) : (
-              'Sign In →'
-            )}
+            Sign In →
           </button>
         </form>
 

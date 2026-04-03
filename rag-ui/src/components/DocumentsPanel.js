@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
-import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, Loader2, Inbox, Tag, X, Edit2 } from 'lucide-react';
+import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, Loader2, Inbox, Tag, X, Edit2, RefreshCw, Download } from 'lucide-react';
 import { ragApi } from '../api';
 import './DocumentsPanel.css';
 
@@ -18,18 +18,83 @@ export default function DocumentsPanel({ onRefresh }) {
   const [editTags, setEditTags] = useState([]);
   const [editTagInput, setEditTagInput] = useState('');
   const [loading, setLoading] = useState(true);
+  const [searchFilename, setSearchFilename] = useState('');
+  const [sortField, setSortField] = useState('uploadedAt');
+  const [sortDirection, setSortDirection] = useState('desc');
 
   useEffect(() => { fetchDocuments(); fetchTags(); }, []);
 
   async function fetchDocuments() {
     try {
       const data = await ragApi.listDocuments(filterTags.length > 0 ? filterTags : null);
-      setDocuments(data.documents || []);
+      // Sort by latest uploaded first (descending date)
+      const sorted = (data.documents || []).sort((a, b) => {
+        const dateA = new Date(a.uploadedAt || 0).getTime();
+        const dateB = new Date(b.uploadedAt || 0).getTime();
+        return dateB - dateA;
+      });
+      setDocuments(sorted);
     } catch (err) {
       toast.error('Failed to load documents: ' + err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleColumnSort(field) {
+    if (sortField === field) {
+      // Toggle sort direction if clicking same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  }
+
+  function getSortedDocuments() {
+    let sorted = [...documents];
+
+    // Filter by search
+    if (searchFilename.trim()) {
+      sorted = sorted.filter(doc =>
+        doc.filename.toLowerCase().includes(searchFilename.toLowerCase())
+      );
+    }
+
+    // Sort by selected field
+    sorted.sort((a, b) => {
+      let aVal, bVal;
+      if (sortField === 'filename') {
+        aVal = a.filename.toLowerCase();
+        bVal = b.filename.toLowerCase();
+      } else if (sortField === 'chunkCount') {
+        aVal = a.chunkCount || 0;
+        bVal = b.chunkCount || 0;
+      } else if (sortField === 'uploadedAt') {
+        aVal = new Date(a.uploadedAt || 0).getTime();
+        bVal = new Date(b.uploadedAt || 0).getTime();
+      } else {
+        return 0;
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }
+
+  function SortHeader({ field, label }) {
+    const isActive = sortField === field;
+    return (
+      <th onClick={() => handleColumnSort(field)} style={{ cursor: 'pointer', userSelect: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {label}
+          {isActive && <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>}
+        </div>
+      </th>
+    );
   }
 
   async function fetchTags() {
@@ -110,10 +175,11 @@ export default function DocumentsPanel({ onRefresh }) {
 
   /**
    * Poll the ingest job until completed, failed, or timed out.
-   * Updates the upload item status live.
+   * Updates the upload item status live with exponential backoff on errors.
    */
   function pollIngestJob(uid, jobId) {
     const startedAt = Date.now();
+    let failureCount = 0;
 
     const tick = async () => {
       // Give up after POLL_TIMEOUT
@@ -128,6 +194,7 @@ export default function DocumentsPanel({ onRefresh }) {
 
       try {
         const data = await ragApi.getIngestStatus(jobId);
+        failureCount = 0; // Reset on success
 
         if (data.state === 'completed') {
           const chunks = data.result?.chunks ?? '?';
@@ -159,8 +226,11 @@ export default function DocumentsPanel({ onRefresh }) {
         setTimeout(tick, POLL_INTERVAL);
 
       } catch (err) {
-        // Network hiccup — keep polling
-        setTimeout(tick, POLL_INTERVAL * 2);
+        // Exponential backoff on errors (rate limit or network issues)
+        failureCount++;
+        const backoffDelay = POLL_INTERVAL * Math.pow(1.5, Math.min(failureCount, 3));
+        console.warn(`[Poll ${uid}] Error (attempt ${failureCount}), backing off ${Math.round(backoffDelay)}ms:`, err.message);
+        setTimeout(tick, backoffDelay);
       }
     };
 
@@ -222,6 +292,22 @@ export default function DocumentsPanel({ onRefresh }) {
     }
   }
 
+  async function handleDownload(doc) {
+    try {
+      // Create download URL for the document
+      const downloadUrl = `${process.env.REACT_APP_API_URL || '/api'}/documents/${doc.id}/download`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = doc.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Downloading "${doc.filename}"`);
+    } catch (err) {
+      toast.error('Download failed: ' + err.message);
+    }
+  }
+
   const fileIcon = t => {
     const icons = {
       pdf: <FileText size={18} />,
@@ -249,7 +335,7 @@ export default function DocumentsPanel({ onRefresh }) {
             </>
         }
         <button type="button" className="btn btn-primary" style={{ pointerEvents: 'none', marginTop: 8 }}>
-          Browse Files
+          Upload Files
         </button>
       </div>
 
@@ -283,50 +369,74 @@ export default function DocumentsPanel({ onRefresh }) {
         </div>
       )}
 
-      {/* Tag filter bar */}
-      {availableTags.length > 0 && (
-        <div className="tag-filter-bar">
-          <div className="tag-filter-label"><Tag size={14} /> Filter by tags:</div>
-          <div className="tag-filter-chips">
-            {availableTags.map(tag => (
-              <button
-                key={tag}
-                className={`tag-filter-chip ${filterTags.includes(tag) ? 'active' : ''}`}
-                onClick={() => toggleFilterTag(tag)}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-          {filterTags.length > 0 && (
-            <button className="btn btn-ghost btn-xs" onClick={clearFilters}>
-              Clear filters
+      {/* Document search and filter card */}
+      <div className="document-filter-card">
+        <div className="filter-card-header">
+          <div className="filter-card-title"><Tag size={14} /> Search & Filter Documents</div>
+          {(searchFilename.trim() || filterTags.length > 0) && (
+            <button className="btn btn-ghost btn-xs" onClick={() => {
+              setSearchFilename('');
+              clearFilters();
+            }}>
+              Clear all
             </button>
           )}
         </div>
-      )}
+        <div className="filter-card-content">
+          <div className="filter-search-row">
+            <input
+              type="text"
+              placeholder="Search by filename…"
+              className="document-search-input"
+              value={searchFilename}
+              onChange={e => setSearchFilename(e.target.value)}
+            />
+          </div>
+          {availableTags.length > 0 && (
+            <div className="filter-tags-row">
+              <div className="filter-tags-label">Filter by tags:</div>
+              <div className="filter-tag-chips">
+                {availableTags.map(tag => (
+                  <button
+                    key={tag}
+                    className={`filter-tag-chip ${filterTags.includes(tag) ? 'active' : ''}`}
+                    onClick={() => toggleFilterTag(tag)}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Documents table */}
       <div className="docs-table-wrap">
           <div className="docs-table-header">
             <span>{documents.length} document{documents.length !== 1 ? 's' : ''} in knowledge base</span>
             <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={fetchDocuments}>
-              ↻ Refresh
+              <RefreshCw size={14} /> Refresh
             </button>
           </div>
 
-        {documents.length === 0
+        {getSortedDocuments().length === 0 && documents.length === 0
           ? <div className="empty-state">
               <div className="empty-icon"><Inbox size={40} /></div>
               <div className="empty-label">No documents yet. Upload your first ERP reference document above.</div>
             </div>
+          : getSortedDocuments().length === 0 && searchFilename.trim()
+          ? <div className="empty-state">
+              <div className="empty-icon"><Inbox size={40} /></div>
+              <div className="empty-label">No documents match "{searchFilename}"</div>
+            </div>
           : (
             <table className="docs-table">
               <thead>
-                <tr><th>File</th><th>Type</th><th>Chunks</th><th>Tags</th><th>Uploaded</th><th></th></tr>
+                <tr><SortHeader field="filename" label="File" /><th>Type</th><SortHeader field="chunkCount" label="Chunks" /><th>Tags</th><SortHeader field="uploadedAt" label="Uploaded" /><th></th></tr>
               </thead>
               <tbody>
-                {documents.map(doc => (
+                {getSortedDocuments().map(doc => (
                   <tr key={doc.id}>
                     <td className="doc-name-cell">
                       <span className="file-icon">{fileIcon(doc.fileType)}</span>
@@ -357,8 +467,8 @@ export default function DocumentsPanel({ onRefresh }) {
                             />
                           </div>
                           <div className="tag-edit-actions">
-                            <button className="btn btn-sm btn-primary" onClick={() => saveEditTags(doc.id)}>Save</button>
-                            <button className="btn btn-sm btn-ghost" onClick={cancelEditTags}>Cancel</button>
+                            <button className="btn btn-xs btn-success" onClick={() => saveEditTags(doc.id)}>Save</button>
+                            <button className="btn btn-xs btn-ghost" onClick={cancelEditTags}>Cancel</button>
                           </div>
                         </div>
                       ) : (
@@ -386,11 +496,18 @@ export default function DocumentsPanel({ onRefresh }) {
                         : '—'}
                     </td>
                     <td>
-                      <button className="btn btn-danger btn-sm doc-delete-btn"
-                        onClick={() => handleDelete(doc)}
-                        title="Remove document">
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="doc-actions">
+                        <button className="btn btn-ghost btn-sm doc-download-btn"
+                          onClick={() => handleDownload(doc)}
+                          title="Download file">
+                          <Download size={16} />
+                        </button>
+                        <button className="btn btn-danger btn-sm doc-delete-btn"
+                          onClick={() => handleDelete(doc)}
+                          title="Remove document">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

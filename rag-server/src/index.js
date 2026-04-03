@@ -3,7 +3,7 @@ const express = require('express');
 const cors    = require('cors');
 const helmet  = require('helmet');
 const morgan  = require('morgan');
-const { createRateLimiter } = require('./middleware/rateLimiter');
+const { loginLimiter, queryLimiter, statusLimiter, uploadLimiter } = require('./middleware/rateLimiter');
 const { logger }   = require('./utils/logger');
 const routes       = require('./routes');
 const { spec, swaggerUi } = require('./swagger');
@@ -34,13 +34,6 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }));
-
-// ── Global rate limiter ───────────────────────────────────────────────
-app.use('/api/', createRateLimiter({
-  windowMs: 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX || '60'),
-  message: { error: 'Too many requests.', retryAfter: 60 }
-}));
 
 // ── Swagger UI — available at /docs ───────────────────────────────────
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(spec, {

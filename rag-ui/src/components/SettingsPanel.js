@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Key, Bot, Package, Plus, Trash2, RotateCcw, Eye, EyeOff, Save, Zap, FolderOpen, Download, Upload, Shield, Database } from 'lucide-react';
+import { Key, Bot, Package, Plus, Trash2, RotateCcw, Eye, EyeOff, Save, Network, FolderOpen, Download, Upload, Shield, Database } from 'lucide-react';
 import { ragApi } from '../api';
 import './SettingsPanel.css';
 
@@ -300,7 +300,7 @@ export default function SettingsPanel({ onRefresh }) {
             </button>
             {keyIsSet && (
               <button className="btn btn-ghost" type="button" onClick={testKey} disabled={testing}>
-                {testing ? <span className="spinner-xs" /> : <Zap size={14} />} Test Connection
+                {testing ? <span className="spinner-xs" /> : <Network size={14} />} Test Connection
               </button>
             )}
           </div>

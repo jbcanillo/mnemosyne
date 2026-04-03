@@ -284,9 +284,97 @@ curl -X POST http://localhost:3001/api/vector-store/reset \
 | `CHUNK_SIZE` | `500` | Words per document chunk |
 | `CHUNK_OVERLAP` | `50` | Overlap between adjacent chunks |
 | `CACHE_TTL` | `3600` | Query cache TTL in seconds |
-| `QUERY_RATE_LIMIT` | `20` | Max queries per minute per IP |
 | `CORS_ORIGIN` | `*` | Restrict in production |
 | `APP_URL` | `http://localhost:3000` | Application start URL |
+
+---
+
+## Smart Rate Limiting
+
+Mnemosyne implements **intelligent, endpoint-specific rate limiting** to prevent bottlenecks during high-traffic operations while protecting the server from abuse.
+
+### Rate Limit Tiers
+
+| Endpoint Type | Limit | Window | Purpose |
+|---------------|-------|--------|---------|
+| **Login** | 10 attempts | 15 minutes | Brute force protection |
+| **Query operations** | 150 req/min* | 1 minute | Document queries + job status polls |
+| **Status & Health** | 300 req/min* | 1 minute | Live metric polling (1–5 sec intervals) |
+| **Document upload** | 10 uploads | 1 minute | Document ingestion |
+| **Unauthenticated** | 50% lower | — | API key/session exempt |
+
+*Authenticated users (with `X-Session-Token` or `X-API-Key` header) receive higher limits.
+
+### How It Works
+
+**Login Brute Force Protection**
+- 10 failed attempts per 15 minutes per IP address
+- Returns `429 Too Many Requests` after 10 failures
+
+**High-Throughput Query Operations**
+- Supports **150 requests/minute** (~2.5 req/sec) for authenticated users
+- Handles:
+  - Multiple simultaneous document uploads with 3-second polling intervals
+  - Rapid query submissions with async job polling
+  - Both sync and async query modes
+
+**Live Status Polling**
+- Status checks and health polls have **highest limit (300 req/min)**
+- Enables:
+  - Queue metrics polling every 1 second
+  - Service health checks every 5 seconds
+  - Real-time component status updates
+
+**Intelligent Backoff**
+- When a client hits a rate limit, polling automatically backs off with **exponential backoff**:
+  - First retry: 1.5x the normal interval
+  - Second retry: 2.25x the normal interval
+  - Third retry: 3.375x the normal interval
+  - Prevents retry storms and distributes load
+
+### Configuration
+
+Set authenticated user limit in `rag-server/.env`:
+
+```env
+# Default: 120 (allows 2 req/sec for auth users)
+# Increase for high-concurrency deployments
+# Example: 240 = 4 req/sec, 60 = 1 req/sec
+RATE_LIMIT_MAX=120
+```
+
+### Example: Multiple Document Uploads
+
+Without smart rate limiting, the following scenario would fail:
+
+```bash
+# Upload 5 documents in rapid succession
+for i in {1..5}; do
+  curl -X POST http://localhost:3001/api/documents/upload \
+    -H "X-Session-Token: $token" \
+    -F "file=@document_$i.pdf" &
+done
+wait
+
+# Each upload polls for status every 3 seconds
+# 5 docs × polling every 3s = 5 status requests total
+# ✓ Succeeds — within 10 uploads/min limit
+# ✓ Polling not throttled — within 300 req/min limit
+```
+
+### Monitoring Rate Limits
+
+When a rate limit is exceeded, the server responds with:
+
+```json
+{
+  "error": "Too many requests. Please try again in a moment.",
+  "retryAfter": 60
+}
+```
+
+The UI automatically shows a toast notification with the error message. Status checks and other operations will gracefully retry with exponential backoff.
+
 ---
 
 ## Troubleshooting

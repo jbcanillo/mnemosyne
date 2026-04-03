@@ -40,7 +40,7 @@
 .sp-free-tag { padding: 2px 7px; background: rgba(61,255,160,0.1); color: var(--success); border: 1px solid rgba(61,255,160,0.2); border-radius: 10px; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; }
 
 /* ── Status grid ── */
-.status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 
 .sc {
   background: rgba(13,18,32,0.7); backdrop-filter: blur(10px);
@@ -295,17 +295,19 @@
 .accent-warn   { color: var(--warn) !important; }
 
 /* Per-model table */
-.mi-model-table { display: flex; flex-direction: column; gap: 2px; }
+.mi-model-table { display: flex; flex-direction: column; gap: 2px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .mi-model-table-head {
   display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
   padding: 6px 10px; font-size: 10px; color: var(--text3);
   text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
   border-bottom: 1px solid var(--border);
+  min-width: 600px;
 }
 .mi-model-row {
   display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
   padding: 7px 10px; font-size: 12px; color: var(--text2);
   border-radius: var(--radius); transition: background 0.1s;
+  min-width: 600px;
 }
 .mi-model-row:hover { background: rgba(255,255,255,0.03); }
 .mi-model-id { font-family: var(--mono); color: var(--accent); font-size: 11px; }
@@ -372,6 +374,33 @@
 }
 
 /* ── Live Log Viewer ── */
+.log-search-wrap {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.log-search-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(0,0,0,0.2);
+  color: var(--text1);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.log-search-input::placeholder {
+  color: var(--text3);
+}
+
+.log-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124,92,252,0.2);
+}
+
 .log-viewer {
   background: rgba(0,0,0,0.4);
   border: 1px solid var(--border);
@@ -379,6 +408,8 @@
   padding: 12px;
   max-height: 300px;
   overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   font-family: var(--mono);
   font-size: 11px;
   line-height: 1.6;
@@ -439,4 +470,47 @@
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 11px;
+}
+
+/* Mobile Responsive for Logs and Tables */
+@media (max-width: 768px) {
+  .log-viewer {
+    max-height: 250px;
+    font-size: 10px;
+  }
+  
+  .log-time {
+    min-width: 70px;
+  }
+  
+  .log-level {
+    min-width: 45px;
+  }
+}
+
+@media (max-width: 480px) {
+  .log-viewer {
+    max-height: 220px;
+    padding: 10px;
+    font-size: 9px;
+  }
+  
+  .log-entry {
+    gap: 6px;
+    padding: 1px 2px;
+  }
+  
+  .log-time {
+    min-width: 65px;
+    font-size: 9px;
+  }
+  
+  .log-level {
+    min-width: 40px;
+    font-size: 9px;
+  }
+  
+  .log-message {
+    font-size: 9px;
+  }
 }
