@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
-import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, Loader2, Inbox, Tag, X, Edit2, RefreshCw } from 'lucide-react';
+import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, Loader2, Inbox, Tag, X, Edit2, RefreshCw, Download } from 'lucide-react';
 import { ragApi } from '../api';
 import './DocumentsPanel.css';
 
@@ -175,10 +175,11 @@ export default function DocumentsPanel({ onRefresh }) {
 
   /**
    * Poll the ingest job until completed, failed, or timed out.
-   * Updates the upload item status live.
+   * Updates the upload item status live with exponential backoff on errors.
    */
   function pollIngestJob(uid, jobId) {
     const startedAt = Date.now();
+    let failureCount = 0;
 
     const tick = async () => {
       // Give up after POLL_TIMEOUT
@@ -193,6 +194,7 @@ export default function DocumentsPanel({ onRefresh }) {
 
       try {
         const data = await ragApi.getIngestStatus(jobId);
+        failureCount = 0; // Reset on success
 
         if (data.state === 'completed') {
           const chunks = data.result?.chunks ?? '?';
@@ -224,8 +226,11 @@ export default function DocumentsPanel({ onRefresh }) {
         setTimeout(tick, POLL_INTERVAL);
 
       } catch (err) {
-        // Network hiccup — keep polling
-        setTimeout(tick, POLL_INTERVAL * 2);
+        // Exponential backoff on errors (rate limit or network issues)
+        failureCount++;
+        const backoffDelay = POLL_INTERVAL * Math.pow(1.5, Math.min(failureCount, 3));
+        console.warn(`[Poll ${uid}] Error (attempt ${failureCount}), backing off ${Math.round(backoffDelay)}ms:`, err.message);
+        setTimeout(tick, backoffDelay);
       }
     };
 
@@ -462,8 +467,8 @@ export default function DocumentsPanel({ onRefresh }) {
                             />
                           </div>
                           <div className="tag-edit-actions">
-                            <button className="btn btn-sm btn-primary" onClick={() => saveEditTags(doc.id)}>Save</button>
-                            <button className="btn btn-sm btn-ghost" onClick={cancelEditTags}>Cancel</button>
+                            <button className="btn btn-xs btn-success" onClick={() => saveEditTags(doc.id)}>Save</button>
+                            <button className="btn btn-xs btn-ghost" onClick={cancelEditTags}>Cancel</button>
                           </div>
                         </div>
                       ) : (
@@ -495,7 +500,7 @@ export default function DocumentsPanel({ onRefresh }) {
                         <button className="btn btn-ghost btn-sm doc-download-btn"
                           onClick={() => handleDownload(doc)}
                           title="Download file">
-                          <FileText size={16} />
+                          <Download size={16} />
                         </button>
                         <button className="btn btn-danger btn-sm doc-delete-btn"
                           onClick={() => handleDelete(doc)}

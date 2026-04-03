@@ -1,19 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { MessageSquare, Trash2, Send, PanelLeftOpen, PanelLeftClose, Bot, AlertTriangle, User, FileText, Zap, Eraser, Tag, X } from 'lucide-react';
+import { MessageSquare, Trash2, Send, PanelLeftOpen, PanelLeftClose, Bot, AlertTriangle, User, FileText, Zap, Eraser, Tag, X, Copy, Share2, Info } from 'lucide-react';
 import { ragApi } from '../api';
 import './QueryPanel.css';
 
-const EXAMPLE_QUERIES = [
-  'What information is available about this topic?',
-  'Summarize the key points in the knowledge base',
-  'How does the process work?',
-  'What are the main categories of data?',
-  'Give me an overview of the uploaded documents',
-];
+// Load example queries from environment, fallback to defaults
+const EXAMPLE_QUERIES = process.env.REACT_APP_EXAMPLE_QUERIES
+  ? JSON.parse(process.env.REACT_APP_EXAMPLE_QUERIES)
+  : [
+      'What vital data are available on this document?',
+      'Summarize the key points in the knowledge base',
+      'How does the information in the documents relate to each other?',
+      'Who are the persons involved?',
+      'When were the events described in the documents?',
+    ];
 
 // history and setHistory come from App.js so chat persists across tab switches
-export default function QueryPanel({ history, setHistory, onLoadingChange }) {
+export default function QueryPanel({ history, setHistory, onLoadingChange, onNewMessage }) {
   const [query,     setQuery]     = useState('');
   const [loading,   setLoading]   = useState(false);
   const [asyncMode, setAsyncMode] = useState(true);
@@ -35,6 +38,8 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
   const [processingSessions, setProcessingSessions] = useState({});
   const [editingTitleId, setEditingTitleId] = useState(null);
   const [editingTitleValue, setEditingTitleValue] = useState('');
+  const [showMetaSidebar, setShowMetaSidebar] = useState(false);
+  const [selectedMetaMsg, setSelectedMetaMsg] = useState(null);
   const bottomRef = useRef(null);
   const sessionsLoadedRef = useRef(false);
 
@@ -246,6 +251,53 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
     setEditingTitleValue('');
   }
 
+  function handleShowMeta(msg) {
+    setSelectedMetaMsg(msg);
+    setShowMetaSidebar(true);
+  }
+
+  function handleCopyResponse(text) {
+    if (!text) {
+      toast.error('Nothing to copy');
+      return;
+    }
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        toast.success('Copied response to clipboard (Ctrl+C)');
+      })
+      .catch(err => {
+        console.warn('Clipboard copy failed', err);
+        toast.error('Copy failed; please copy manually.');
+      });
+  }
+
+  function handleShareResponse(text) {
+    if (!text) {
+      toast.error('Nothing to share');
+      return;
+    }
+
+    if (navigator.share) {
+      navigator.share({
+        title: 'Mnemosyne response',
+        text
+      }).catch(err => {
+        console.warn('Web Share failed', err);
+        toast.error('Share cancelled or failed');
+      });
+    } else {
+      // Fallback: copy and prompt
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          toast.success('No native share available; response copied to clipboard');
+        })
+        .catch(err => {
+          console.warn('Fallback copy failed', err);
+          toast.error('Share not supported on this browser');
+        });
+    }
+  }
+
   async function handleQuery(e) {
     e?.preventDefault();
     if (!query.trim() || loading) return;
@@ -274,6 +326,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
     // Add user message to history
     const userMsg = { type: 'user', text: q, ts: new Date() };
     setHistory(h => [...h, userMsg]);
+    onNewMessage?.();
 
     // Save user message to Redis
     try {
@@ -305,6 +358,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
             ts: new Date()
           };
           setHistory(h => [...h, assistantMsg]);
+          onNewMessage?.();
           try {
             await ragApi.addMessage(currentSessionId, assistantMsg);
           } catch (err) {
@@ -314,6 +368,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
         } else {
           const assistantMsg = { type: 'assistant', text: null, jobId: response.jobId, loading: true, ts: new Date() };
           setHistory(h => [...h, assistantMsg]);
+          onNewMessage?.();
           try {
             await ragApi.addMessage(currentSessionId, assistantMsg);
           } catch (err) {
@@ -344,6 +399,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
           relevantChunks: result.relevantChunks, ts: new Date()
         };
         setHistory(h => [...h, assistantMsg]);
+        onNewMessage?.();
         
         // Save to Redis
         try {
@@ -371,9 +427,12 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
   }
 
   async function pollJob(jobId, onDone) {
+    let failureCount = 0;
     const poll = async () => {
       try {
         const status = await ragApi.getJobStatus(jobId);
+        failureCount = 0; // Reset on success
+        
         if (status.state === 'completed') {
           const result = status.result;
           const assistantMsg = {
@@ -411,7 +470,13 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
           return;
         }
         setTimeout(poll, 1500);
-      } catch { setTimeout(poll, 2000); }
+      } catch (err) {
+        // Exponential backoff on errors (rate limit or network issues)
+        failureCount++;
+        const backoffDelay = 1500 * Math.pow(1.5, Math.min(failureCount, 3));
+        console.warn(`[Poll job ${jobId}] Error (attempt ${failureCount}), backing off ${Math.round(backoffDelay)}ms:`, err.message);
+        setTimeout(poll, backoffDelay);
+      }
     };
     setTimeout(poll, 500);
   }
@@ -561,7 +626,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
               <span className="toggle-slider" />
             </label>
             {history.length > 0 && (
-              <button className="btn btn-ghost btn-xs" onClick={clearChat}>Clear</button>
+              <button className="btn btn-ghost btn-xs" onClick={clearChat}>Clear Chat</button>
             )}
           </div>
         </div>
@@ -607,20 +672,36 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
                           <>
                             <div className="msg-text">{msg.text}</div>
                             <div className="msg-footer">
-                              {msg.sources?.length > 0 && (
-                                <div className="sources-row">
-                                  <span className="sources-label">Sources:</span>
-                                  {msg.sources.map((s, j) => (
-                                    <span key={j} className="source-chip">
-                                      <FileText size={12} /> {s.filename} <span className="source-score">{Math.round(s.relevanceScore * 100)}%</span>
-                                    </span>
-                                  ))}
+                              <div className="msg-meta-row">
+                                <div className="msg-meta">
+                                  {fmtTime(msg.ts)}
                                 </div>
-                              )}
-                              <div className="msg-meta">
-                                {fmtTime(msg.ts)}
-                                {msg.fromCache && <span className="cache-badge"><Zap size={10} /> cached</span>}
-                                {msg.relevantChunks > 0 && <span className="chunk-badge">{msg.relevantChunks} chunks</span>}
+                                <div className="msg-actions-bottom">
+                                  <button
+                                    type="button"
+                                    className="msg-action-btn msg-action-btn-small"
+                                    onClick={() => handleShowMeta(msg)}
+                                    title="View metadata"
+                                  >
+                                    <Info size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="msg-action-btn msg-action-btn-small"
+                                    onClick={() => handleCopyResponse(msg.text)}
+                                    title="Copy response (Ctrl+C)"
+                                  >
+                                    <Copy size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="msg-action-btn msg-action-btn-small"
+                                    onClick={() => handleShareResponse(msg.text)}
+                                    title="Share response"
+                                  >
+                                    <Share2 size={12} />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </>
@@ -664,7 +745,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
               </div>
               {selectedTags.length > 0 && (
                 <button type="button" className="btn btn-ghost btn-xs chat-tag-clear" onClick={clearSelectedTags}>
-                  <X size={10} /> Clear
+                  <X size={10} /> Unfilter
                 </button>
               )}
             </div>
@@ -689,6 +770,47 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
           </div>
         </form>
       </div>
+
+      {/* Meta Sidebar */}
+      {showMetaSidebar && selectedMetaMsg && (
+        <div className="meta-sidebar-overlay" onClick={() => setShowMetaSidebar(false)}>
+          <div className="meta-sidebar" onClick={(e) => e.stopPropagation()}>
+            <div className="meta-sidebar-header">
+              <span>Message Details</span>
+              <button className="btn-icon btn-ghost" onClick={() => setShowMetaSidebar(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="meta-sidebar-content">
+              <div className="meta-item">
+                <strong>Timestamp:</strong> {fmtTime(selectedMetaMsg.ts)}
+              </div>
+              {selectedMetaMsg.fromCache && (
+                <div className="meta-item">
+                  <strong>Status:</strong> <span className="cache-badge"><Zap size={10} /> Cached</span>
+                </div>
+              )}
+              {selectedMetaMsg.relevantChunks > 0 && (
+                <div className="meta-item">
+                  <strong>Chunks:</strong> {selectedMetaMsg.relevantChunks}
+                </div>
+              )}
+              {selectedMetaMsg.sources?.length > 0 && (
+                <div className="meta-item">
+                  <strong>Sources:</strong>
+                  <div className="meta-sources">
+                    {selectedMetaMsg.sources.map((s, j) => (
+                      <div key={j} className="meta-source-item">
+                        <FileText size={12} /> {s.filename} ({Math.round(s.relevanceScore * 100)}%)
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -24,9 +24,11 @@ function AuthenticatedApp() {
   const [info,         setInfo]         = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isQueryLoading, setIsQueryLoading] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   // ── Persistent chat history — lives here so tab switches don't reset it ──
   const [chatHistory, setChatHistory] = useState([]);
+  const [chatViewed, setChatViewed] = useState(true); // Track if user has viewed latest messages
 
   useEffect(() => {
     checkHealth();
@@ -38,6 +40,34 @@ function AuthenticatedApp() {
       window.removeEventListener('rag:unauthorized', onUnauthorized);
     };
   }, [logout]);
+
+  // Track scroll position to show "scroll to top" button
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      // Show button when user is near bottom (within 300px) or scrolled down
+      setShowScrollTop(scrollTop > 300 || scrollTop > docHeight - 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Scroll to top smoothly
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
+  // Mark chat as viewed when user navigates to query tab
+  useEffect(() => {
+    if (activeTab === 'query') {
+      setChatViewed(true);
+    }
+  }, [activeTab]);
 
   async function checkHealth() {
     try {
@@ -85,7 +115,7 @@ function AuthenticatedApp() {
               <span className="session-expiry">{sessionExpirySummary()}</span>
             )}
             <button className="logout-btn" onClick={logout} title="Sign out">
-              Sign out
+              <LogOut size={14} />
             </button>
           </div>
         </div>
@@ -109,10 +139,7 @@ function AuthenticatedApp() {
           >
             <span className="tab-icon">{t.icon}</span>
             {t.label}
-            {t.id === 'query' && isQueryLoading && (
-              <span className="tab-processing-dot" title="Processing query..." />
-            )}
-            {t.id === 'query' && chatHistory.length > 0 && activeTab !== 'query' && !isQueryLoading && (
+            {t.id === 'query' && !chatViewed && activeTab !== 'query' && (
               <span className="tab-unread" />
             )}
           </button>
@@ -122,7 +149,7 @@ function AuthenticatedApp() {
       {/* ── Content — all panels always mounted, hidden via CSS to preserve state ── */}
       <main className="main">
         <div style={{ display: activeTab === 'query'     ? 'contents' : 'none' }}>
-          <QueryPanel history={chatHistory} setHistory={setChatHistory} onLoadingChange={setIsQueryLoading} />
+          <QueryPanel history={chatHistory} setHistory={setChatHistory} onLoadingChange={setIsQueryLoading} onNewMessage={() => setChatViewed(false)} />
         </div>
         <div style={{ display: activeTab === 'documents' ? 'contents' : 'none' }}>
           <DocumentsPanel onRefresh={checkHealth} />
@@ -143,26 +170,44 @@ function AuthenticatedApp() {
           <span>Self-hosted Retrieval-Augmented Generation</span>
         </div>
       </footer>
+
+      {/* ── Scroll to Top Button ── */}
+      {showScrollTop && (
+        <button 
+          className="scroll-to-top-btn" 
+          onClick={scrollToTop} 
+          title="Scroll to top"
+          aria-label="Scroll to top"
+        >
+          <span>↑</span>
+        </button>
+      )}
     </div>
   );
 }
 
 function AppInner() {
   const { isAuthenticated, checking, justLoggedIn } = useAuth();
-  if (checking) {
+  
+  // Show logo + progress bar during auth check or after login
+  const showLoadingState = checking || justLoggedIn;
+  
+  if (showLoadingState) {
     return (
       <div className="app-loading">
-        <div className="app-loading-spinner" />
+        <div className="login-loading-container">
+          <div className="login-loading-logo">
+            <img src="/logo.svg" alt="Mnemosyne" className="login-loading-img" />
+          </div>
+          <div className="login-progress-bar">
+            <div className="login-progress-fill" />
+          </div>
+          <div className="login-loading-text">Loading...</div>
+        </div>
       </div>
     );
   }
-  if (justLoggedIn) {
-    return (
-      <div className="app-loading">
-        <div className="app-loading-spinner" />
-      </div>
-    );
-  }
+  
   return isAuthenticated ? <AuthenticatedApp /> : <LoginScreen />;
 }
 

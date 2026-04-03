@@ -295,17 +295,19 @@
 .accent-warn   { color: var(--warn) !important; }
 
 /* Per-model table */
-.mi-model-table { display: flex; flex-direction: column; gap: 2px; }
+.mi-model-table { display: flex; flex-direction: column; gap: 2px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .mi-model-table-head {
   display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
   padding: 6px 10px; font-size: 10px; color: var(--text3);
   text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
   border-bottom: 1px solid var(--border);
+  min-width: 600px;
 }
 .mi-model-row {
   display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
   padding: 7px 10px; font-size: 12px; color: var(--text2);
   border-radius: var(--radius); transition: background 0.1s;
+  min-width: 600px;
 }
 .mi-model-row:hover { background: rgba(255,255,255,0.03); }
 .mi-model-id { font-family: var(--mono); color: var(--accent); font-size: 11px; }
@@ -406,6 +408,8 @@
   padding: 12px;
   max-height: 300px;
   overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   font-family: var(--mono);
   font-size: 11px;
   line-height: 1.6;
@@ -466,4 +470,47 @@
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 11px;
+}
+
+/* Mobile Responsive for Logs and Tables */
+@media (max-width: 768px) {
+  .log-viewer {
+    max-height: 250px;
+    font-size: 10px;
+  }
+  
+  .log-time {
+    min-width: 70px;
+  }
+  
+  .log-level {
+    min-width: 45px;
+  }
+}
+
+@media (max-width: 480px) {
+  .log-viewer {
+    max-height: 220px;
+    padding: 10px;
+    font-size: 9px;
+  }
+  
+  .log-entry {
+    gap: 6px;
+    padding: 1px 2px;
+  }
+  
+  .log-time {
+    min-width: 65px;
+    font-size: 9px;
+  }
+  
+  .log-level {
+    min-width: 40px;
+    font-size: 9px;
+  }
+  
+  .log-message {
+    font-size: 9px;
+  }
 }

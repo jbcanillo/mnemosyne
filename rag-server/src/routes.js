@@ -7,29 +7,20 @@ const authController     = require('./controllers/authController');
 const uploadMiddleware   = require('./middleware/upload');
 const { requireApiKey, requireSession } = require('./middleware/auth');
 const settingsController = require('./controllers/settingsController');
-const { createRateLimiter } = require('./middleware/rateLimiter');
+const { loginLimiter, queryLimiter, statusLimiter, uploadLimiter } = require('./middleware/rateLimiter');
 const modelsService      = require('./services/modelsService');
 const { logger }         = require('./utils/logger');
 
 // ── Auth ─────────────────────────────────────────────────────────────
-const loginRateLimit = createRateLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: { error: 'Too many login attempts. Try again in 15 minutes.' }
-});
-router.post('/auth/login',  loginRateLimit, authController.login);
+router.post('/auth/login',  loginLimiter, authController.login);
 router.post('/auth/logout', authController.logout);
 router.get('/auth/verify',  ...authController.verify);
 
 // ── Query (API Key OR Session) ────────────────────────────────────────
-const queryRateLimit = createRateLimiter({
-  windowMs: 60 * 1000,
-  max: parseInt(process.env.QUERY_RATE_LIMIT || '20'),
-  message: { error: 'Query rate limit exceeded.' }
-});
-router.post('/query',              eitherAuth, queryRateLimit, queryController.query);
-router.get('/query/status/:jobId', eitherAuth, queryController.getJobStatus);
-router.get('/query/debug',         eitherAuth, queryController.debug);
+// queryLimiter allows 150+ requests/min for authenticated users, less for others
+router.post('/query',              eitherAuth, queryLimiter, queryController.query);
+router.get('/query/status/:jobId', eitherAuth, statusLimiter, queryController.getJobStatus);
+router.get('/query/debug',         eitherAuth, statusLimiter, queryController.debug);
 
 // ── Step-by-step pipeline test — pinpoints exactly where queries fail ──
 router.get('/query/test', eitherAuth, async (req, res) => {
@@ -117,11 +108,11 @@ router.get('/query/test', eitherAuth, async (req, res) => {
 });
 
 // ── Documents (Session only) ─────────────────────────────────────────
-router.post('/documents/upload',             requireSession, uploadMiddleware.single('file'), documentController.upload);
+router.post('/documents/upload',             requireSession, uploadLimiter, uploadMiddleware.single('file'), documentController.upload);
 router.get('/documents',                     requireSession, documentController.list);
 router.get('/documents/stats',               requireSession, documentController.stats);
 router.get('/documents/tags',                requireSession, documentController.getTags);
-router.get('/documents/ingest-status/:jobId',requireSession, documentController.ingestStatus);
+router.get('/documents/ingest-status/:jobId',requireSession, statusLimiter, documentController.ingestStatus);
 router.delete('/documents/:id',              requireSession, documentController.remove);
 router.put('/documents/:id/tags',            requireSession, documentController.updateTags);
 
@@ -136,7 +127,7 @@ router.post('/vector-store/reset', requireSession, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router.get('/info',     requireSession, queryController.info);
+router.get('/info',     requireSession, statusLimiter, queryController.info);
 
 // ── Token usage & model info (Session only) ──────────────────────────
 router.get('/usage', requireSession, (req, res) => {
@@ -156,7 +147,7 @@ router.delete('/usage', requireSession, (req, res) => {
 });
 
 // ── Healthcheck (public) ──────────────────────────────────────────────
-router.get('/healthcheck', eitherAuth, async (req, res) => {
+router.get('/healthcheck', eitherAuth, statusLimiter, async (req, res) => {
   const llm = require('./services/llmService');
   const vs  = require('./services/vectorStore');
   const cfg = require('./services/configService');

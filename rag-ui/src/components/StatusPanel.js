@@ -346,19 +346,21 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
               {logs
                 .filter(log => {
                   if (!logSearch.trim()) return true;
-                  const content = `${log.timestamp || ''} ${log.level || ''} ${log.message || log}`.toLowerCase();
+                  const msg = log.message || (typeof log === 'string' ? log : JSON.stringify(log));
+                  const content = `${log.timestamp || ''} ${log.level || ''} ${msg}`.toLowerCase();
                   return content.includes(logSearch.toLowerCase());
                 })
                 .map((log, i) => (
                   <div key={i} className={`log-entry log-${log.level || 'info'}`}>
                     <span className="log-time">{log.timestamp || ''}</span>
                     <span className="log-level">{(log.level || 'info').toUpperCase()}</span>
-                    <span className="log-message">{log.message || log}</span>
+                    <span className="log-message">{log.message || (typeof log === 'string' ? log : JSON.stringify(log))}</span>
                   </div>
                 ))}
               {logs.filter(log => {
                 if (!logSearch.trim()) return false;
-                const content = `${log.timestamp || ''} ${log.level || ''} ${log.message || log}`.toLowerCase();
+                const msg = log.message || (typeof log === 'string' ? log : JSON.stringify(log));
+                const content = `${log.timestamp || ''} ${log.level || ''} ${msg}`.toLowerCase();
                 return content.includes(logSearch.toLowerCase());
               }).length === 0 && logSearch.trim() && (
                 <div className="log-empty">No logs match "{logSearch}"</div>
