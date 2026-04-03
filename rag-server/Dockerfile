@@ -12,7 +12,7 @@ RUN npm install --omit=dev
 COPY rag-server/src/ ./src/
 
 # Create required directories  
-RUN mkdir -p /var/log/rag /tmp/rag-uploads /app/backups
+RUN mkdir -p /var/log/rag /tmp/rag-uploads /app/backups /data/config /data/documents
 
 # Try to copy scripts if available (optional)
 COPY scripts/ /app/scripts/
@@ -20,13 +20,8 @@ COPY scripts/ /app/scripts/
 # Make scripts executable
 RUN find /app/scripts -type f -name "*.sh" -exec chmod +x {} + 2>/dev/null || true
 
-# Create config dir and give raguser ownership (Fix: permission denied on /data/config)
-RUN mkdir -p /data/config
-
-# Run as non-root
-RUN addgroup -S raguser && adduser -S raguser -G raguser
-RUN chown -R raguser:raguser /app /var/log/rag /tmp/rag-uploads /data/config
-USER raguser
+# Note: Running as root to allow writing to Docker named volumes.
+# For production, consider using bind mounts with proper ownership or an entrypoint that chowns volumes.
 
 EXPOSE 3001
 

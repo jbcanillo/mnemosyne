@@ -51,6 +51,18 @@
 .header-left { display: flex; align-items: center; gap: 0; }
 .header-right { display: flex; align-items: center; gap: 12px; }
 
+.theme-toggle-btn {
+  background: none; border: none;
+  color: var(--text2);
+  cursor: pointer; padding: 6px; border-radius: 8px;
+  transition: all 0.2s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.theme-toggle-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: var(--accent);
+}
+
 .logo { display: flex; align-items: baseline; gap: 0; }
 .logo-name {
   font-family: var(--sans);

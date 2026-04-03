@@ -127,6 +127,7 @@ services:
       - rag_uploads:/tmp/rag-uploads
       - rag_logs:/var/log/rag
       - rag_config:/data/config
+      - rag_documents:/data/documents
     ports:
       - "127.0.0.1:3001:3001"
     healthcheck:
@@ -167,6 +168,7 @@ volumes:
   rag_uploads:
   rag_logs:
   rag_config:    # persists OpenRouter key and settings across container restarts
+  rag_documents: # persists original uploaded documents for download
 
 networks:
   rag-net:

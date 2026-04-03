@@ -33,6 +33,32 @@
   --radius-xl: 20px;
 }
 
+/* Light theme */
+[data-theme="light"] {
+  --bg:       #ffffff;
+  --bg2:      #f8f9fa;
+  --bg3:      #e9ecef;
+  --bg4:      #dee2e6;
+  --border:   rgba(0,0,0,0.08);
+  --border2:  rgba(0,0,0,0.12);
+  --border3:  rgba(0,0,0,0.16);
+
+  --accent:   #7c5cfc;
+  --accent2:  #00d4ff;
+  --accent3:  #fc5cf8;
+  --glow:     rgba(124,92,252,0.25);
+  --glow2:    rgba(0,212,255,0.20);
+  --dim:      rgba(124,92,252,0.08);
+  --dim2:     rgba(0,212,255,0.06);
+
+  --text:     #212529;
+  --text2:    #6c757d;
+  --text3:    #adb5bd;
+  --danger:   #dc3545;
+  --warn:     #ffc107;
+  --success:  #28a745;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; }
 
@@ -47,6 +73,13 @@ body {
     radial-gradient(ellipse 80% 50% at 20% 0%, rgba(124,92,252,0.08) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 80% 100%, rgba(0,212,255,0.06) 0%, transparent 60%);
   background-attachment: fixed;
+}
+
+/* Light theme body adjustments */
+[data-theme="light"] body {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(124,92,252,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(0,212,255,0.03) 0%, transparent 60%);
 }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
