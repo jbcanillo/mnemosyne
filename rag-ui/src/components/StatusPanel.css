@@ -40,7 +40,7 @@
 .sp-free-tag { padding: 2px 7px; background: rgba(61,255,160,0.1); color: var(--success); border: 1px solid rgba(61,255,160,0.2); border-radius: 10px; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; }
 
 /* ── Status grid ── */
-.status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 
 .sc {
   background: rgba(13,18,32,0.7); backdrop-filter: blur(10px);
@@ -372,6 +372,33 @@
 }
 
 /* ── Live Log Viewer ── */
+.log-search-wrap {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.log-search-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(0,0,0,0.2);
+  color: var(--text1);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.log-search-input::placeholder {
+  color: var(--text3);
+}
+
+.log-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124,92,252,0.2);
+}
+
 .log-viewer {
   background: rgba(0,0,0,0.4);
   border: 1px solid var(--border);

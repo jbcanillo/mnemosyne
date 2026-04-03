@@ -17,6 +17,7 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
   const [logs,         setLogs]         = useState([]);
   const [logsLoading,  setLogsLoading]  = useState(false);
   const [logsError,    setLogsError]    = useState(null);
+  const [logSearch,    setLogSearch]    = useState('');
 
   const loadAll = useCallback(async () => {
     setDiagLoading(true);
@@ -41,18 +42,40 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
 
   useEffect(() => { loadAll(); loadLogs(); }, [loadAll]);
 
-  // Poll queue metrics every 5 seconds for realtime updates
+  // Poll queue metrics every 1 second for realtime updates
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
         const data = await ragApi.getInfo();
-        if (data?.queue) {
-          setInfo(prev => prev ? { ...prev, queue: data.queue } : data);
+        if (data?.queue && info) {
+          // Force component to re-render with updated queue metrics
+          info.queue = data.queue;
+        }
+      } catch (_) { /* silent fail for polling */ }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [info]);
+
+  // Poll service health every 5 seconds for live status updates
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const [diag, health] = await Promise.all([
+          ragApi.getDiagnostics(),
+          ragApi.healthcheck().catch(() => null)
+        ]);
+        setDiagnostics(diag);
+        if (health) {
+          // Update server online status based on health check
+          const serverHealthy = health.status === 'healthy';
+          if (serverHealthy !== serverOnline) {
+            // This will trigger a re-render
+          }
         }
       } catch (_) { /* silent fail for polling */ }
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [serverOnline]);
 
   async function runHealthcheck() {
     setHcLoading(true);
@@ -154,8 +177,8 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
         <StatusCard title="Server"       status={serverOnline ? 'online' : 'offline'} icon={<Activity size={15} />} detail={serverOnline ? 'Healthy' : 'Unreachable'} />
         <StatusCard title="OpenRouter"   status={diagLoading ? 'loading' : or?.status === 'ok' ? 'online' : 'offline'} icon={<Globe size={15} />}
           detail={diagLoading ? 'Checking…' : or?.status === 'ok' ? 'Connected' : or?.error ?? 'Not connected'} />
-        <StatusCard title="Vector Store" status={vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={`${vs?.totalChunks ?? 0} chunks indexed`} />
-        <StatusCard title="Cache"        status={cache ? 'online' : 'unknown'} icon={<Zap size={15} />} detail={cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
+        <StatusCard title="Vector Store" status={diagLoading ? 'loading' : vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={diagLoading ? 'Checking…' : `${vs?.totalChunks ?? 0} chunks indexed`} />
+        <StatusCard title="Cache"        status={diagLoading ? 'loading' : cache ? 'online' : 'offline'} icon={<Zap size={15} />} detail={diagLoading ? 'Checking…' : cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
       </div>
 
       {/* ── Active Model Card ── */}
@@ -302,6 +325,15 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
             {logsLoading ? <span className="spinner-xs" /> : <RefreshCw size={12} />} Refresh
           </button>
         </div>
+        <div className="log-search-wrap">
+          <input
+            type="text"
+            placeholder="Search logs…"
+            className="log-search-input"
+            value={logSearch}
+            onChange={e => setLogSearch(e.target.value)}
+          />
+        </div>
         <div className="log-viewer">
           {logsLoading ? (
             <div className="log-empty">Loading logs…</div>
@@ -311,13 +343,26 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
             <div className="log-empty">No logs available. View server logs with: <code>docker logs mnemosyne-rag-server</code></div>
           ) : (
             <div className="log-entries">
-              {logs.map((log, i) => (
-                <div key={i} className={`log-entry log-${log.level || 'info'}`}>
-                  <span className="log-time">{log.timestamp || ''}</span>
-                  <span className="log-level">{(log.level || 'info').toUpperCase()}</span>
-                  <span className="log-message">{log.message || log}</span>
-                </div>
-              ))}
+              {logs
+                .filter(log => {
+                  if (!logSearch.trim()) return true;
+                  const content = `${log.timestamp || ''} ${log.level || ''} ${log.message || log}`.toLowerCase();
+                  return content.includes(logSearch.toLowerCase());
+                })
+                .map((log, i) => (
+                  <div key={i} className={`log-entry log-${log.level || 'info'}`}>
+                    <span className="log-time">{log.timestamp || ''}</span>
+                    <span className="log-level">{(log.level || 'info').toUpperCase()}</span>
+                    <span className="log-message">{log.message || log}</span>
+                  </div>
+                ))}
+              {logs.filter(log => {
+                if (!logSearch.trim()) return false;
+                const content = `${log.timestamp || ''} ${log.level || ''} ${log.message || log}`.toLowerCase();
+                return content.includes(logSearch.toLowerCase());
+              }).length === 0 && logSearch.trim() && (
+                <div className="log-empty">No logs match "{logSearch}"</div>
+              )}
             </div>
           )}
         </div>

@@ -292,16 +292,35 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
 
     try {
       if (asyncMode) {
-        const job = await ragApi.queryAsync(q, { tags: selectedTags.length > 0 ? selectedTags : undefined });
-        const assistantMsg = { type: 'assistant', text: null, jobId: job.jobId, loading: true, ts: new Date() };
-        setHistory(h => [...h, assistantMsg]);
-        // Save to Redis
-        try {
-          await ragApi.addMessage(currentSessionId, assistantMsg);
-        } catch (err) {
-          console.warn('Failed to save assistant message:', err);
+        const response = await ragApi.queryAsync(q, { tags: selectedTags.length > 0 ? selectedTags : undefined });
+
+        // If the server returned a cached result directly (no jobId), render immediately.
+        if (!response.jobId && (response.answer || response.fromCache)) {
+          const assistantMsg = {
+            type: 'assistant',
+            text: response.answer,
+            sources: response.sources,
+            fromCache: response.fromCache,
+            relevantChunks: response.relevantChunks,
+            ts: new Date()
+          };
+          setHistory(h => [...h, assistantMsg]);
+          try {
+            await ragApi.addMessage(currentSessionId, assistantMsg);
+          } catch (err) {
+            console.warn('Failed to save assistant message:', err);
+          }
+          clearProcessing();
+        } else {
+          const assistantMsg = { type: 'assistant', text: null, jobId: response.jobId, loading: true, ts: new Date() };
+          setHistory(h => [...h, assistantMsg]);
+          try {
+            await ragApi.addMessage(currentSessionId, assistantMsg);
+          } catch (err) {
+            console.warn('Failed to save assistant message:', err);
+          }
+          pollJob(response.jobId, clearProcessing);
         }
-        pollJob(job.jobId, clearProcessing);
       } else {
         const result = await ragApi.query(q, { includeChunks: true, tags: selectedTags.length > 0 ? selectedTags : undefined });
         
@@ -657,7 +676,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleQuery(); } }}
               placeholder="Ask a question about your knowledge base…"
-              rows={1}
+              rows={2}
               disabled={loading}
             />
             <button type="submit" className={`send-btn ${loading ? 'loading' : ''}`} disabled={!query.trim() || loading}>

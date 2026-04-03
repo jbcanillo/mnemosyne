@@ -509,7 +509,7 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(124,92,252,0.1), 0 0 24px rgba(124,92,252,0.08);
 }
-.query-input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 14px; resize: none; max-height: 120px; line-height: 1.5; }
+.query-input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 14px; resize: none; min-height: 40px; max-height: 120px; line-height: 1.5; overflow-y: auto; }
 .query-input::placeholder { color: var(--text3); }
 
 .send-btn {
