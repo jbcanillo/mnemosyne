@@ -60,7 +60,7 @@ class VectorStore {
    *
    * @param {number[]} queryEmbedding - The query embedding vector
    * @param {number} nResults - Number of results to return
-   * @param {string[]} tags - Optional tags to filter by (AND logic)
+   * @param {string[]} tags - Optional tags to filter by (OR logic)
    */
   async query(queryEmbedding, nResults = 5, tags = null) {
     await this.ensureInit();
@@ -96,12 +96,12 @@ class VectorStore {
       };
     });
 
-    // Filter by tags after retrieval (AND logic — chunk's document must have ALL tags)
+    // Filter by tags after retrieval (OR logic — chunk's document must have ANY of the tags)
     if (tags && tags.length > 0) {
       mapped = mapped.filter(chunk => {
         const chunkTags = chunk.metadata?.tags || '';
         const tagList = chunkTags.split(',').map(t => t.trim().toLowerCase());
-        return tags.every(tag => tagList.includes(tag.toLowerCase()));
+        return tags.some(tag => tagList.includes(tag.toLowerCase()));
       });
       logger.info(`[VectorStore] Tag filter: ${tags.join(', ')} → ${mapped.length} chunks remaining`);
     }
@@ -170,7 +170,7 @@ class VectorStore {
 
     let docList = Object.values(docs);
 
-    // Filter by tags if provided (AND logic — document must have ALL tags)
+    // Filter by tags if provided (OR logic — document must have ANY of the tags)
     if (tagsFilter && tagsFilter.length > 0) {
       docList = docList.filter(doc =>
         tagsFilter.every(tag => doc.tags.includes(tag))

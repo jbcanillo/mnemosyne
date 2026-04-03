@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { MessageSquare, Trash2, Send, PanelLeft, PanelRight, Bot, AlertTriangle, User, FileText, Zap, Eraser, Tag, X } from 'lucide-react';
+import { MessageSquare, Trash2, Send, PanelLeftOpen, PanelLeftClose, Bot, AlertTriangle, User, FileText, Zap, Eraser, Tag, X } from 'lucide-react';
 import { ragApi } from '../api';
 import './QueryPanel.css';
 
@@ -33,11 +33,13 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
   const [sessionTags, setSessionTags] = useState({});
   // Track which sessions have active processing jobs
   const [processingSessions, setProcessingSessions] = useState({});
+  const [editingTitleId, setEditingTitleId] = useState(null);
+  const [editingTitleValue, setEditingTitleValue] = useState('');
   const bottomRef = useRef(null);
   const sessionsLoadedRef = useRef(false);
 
   // Get selected tags for the current session
-  const selectedTags = currentSessionId ? (sessionTags[currentSessionId] || []) : [];
+  const selectedTags = currentSessionId ? (Array.isArray(sessionTags[currentSessionId]) ? sessionTags[currentSessionId] : []) : [];
 
   function setSelectedTags(tags) {
     if (!currentSessionId) return;
@@ -66,11 +68,19 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
       ? current.filter(t => t !== tag)
       : [...current, tag];
     setSessionTags(prev => ({ ...prev, [currentSessionId]: updated }));
+    // Persist to server
+    ragApi.updateSession(currentSessionId, { tags: updated }).catch(err => {
+      console.warn('Failed to save tags:', err.message);
+    });
   }
 
   function clearSelectedTags() {
     if (!currentSessionId) return;
     setSessionTags(prev => ({ ...prev, [currentSessionId]: [] }));
+    // Persist to server
+    ragApi.updateSession(currentSessionId, { tags: [] }).catch(err => {
+      console.warn('Failed to clear tags:', err.message);
+    });
   }
 
   // When switching sessions, the selectedTags will automatically update
@@ -95,9 +105,19 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
       // Ensure all sessions have createdAt timestamp
       const sessionsWithDates = (r.sessions || []).map(s => ({
         ...s,
-        createdAt: s.createdAt || s.created_at || new Date().toISOString()
+        createdAt: s.createdAt || s.created_at || new Date().toISOString(),
+        tags: Array.isArray(s.tags) ? s.tags : []
       }));
       setSessions(sessionsWithDates);
+      
+      // Restore session tags from server
+      const tagsMap = {};
+      sessionsWithDates.forEach(s => {
+        if (Array.isArray(s.tags) && s.tags.length > 0) {
+          tagsMap[s.id] = s.tags;
+        }
+      });
+      setSessionTags(tagsMap);
       
       // Set current session to the first one if not set
       if (!currentSessionId && sessionsWithDates?.length > 0) {
@@ -190,12 +210,40 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
   async function renameSession(sessionId, newTitle, e) {
     e.stopPropagation();
     try {
-      await ragApi.updateSession(sessionId, newTitle);
+      await ragApi.updateSession(sessionId, { title: newTitle });
       setSessions(s => s.map(x => x.id === sessionId ? { ...x, title: newTitle } : x));
       toast.success('Conversation renamed');
     } catch (err) {
       toast.error('Failed to rename: ' + err.message);
     }
+  }
+
+  function startEditingTitle(sessionId, currentTitle) {
+    setEditingTitleId(sessionId);
+    setEditingTitleValue(currentTitle);
+  }
+
+  async function saveEditingTitle() {
+    if (!editingTitleId) return;
+    const newTitle = editingTitleValue.trim();
+    if (!newTitle) {
+      toast.error('Title cannot be empty');
+      return;
+    }
+    try {
+      await ragApi.updateSession(editingTitleId, { title: newTitle });
+      setSessions(s => s.map(x => x.id === editingTitleId ? { ...x, title: newTitle } : x));
+      setEditingTitleId(null);
+      setEditingTitleValue('');
+      toast.success('Title updated');
+    } catch (err) {
+      toast.error('Failed to update title: ' + err.message);
+    }
+  }
+
+  function cancelEditingTitle() {
+    setEditingTitleId(null);
+    setEditingTitleValue('');
   }
 
   async function handleQuery(e) {
@@ -264,7 +312,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
             const newTitle = q.substring(0, 50) + (q.length > 50 ? '...' : '');
             try {
               setSessions(s => s.map(x => x.id === currentSessionId ? { ...x, title: newTitle } : x));
-              await ragApi.updateSession(currentSessionId, newTitle);
+              await ragApi.updateSession(currentSessionId, { title: newTitle });
             } catch (err) {
               console.warn('Failed to auto-name session:', err);
             }
@@ -417,7 +465,9 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
                       <div className="conv-item-title">
                         {session.title}
                         {processingSessions[session.id] && (
-                          <span className="conv-processing-dot" title="Processing query..." />
+                          <span className="conv-processing-dot" title="Processing query...">
+                            <span /><span /><span />
+                          </span>
                         )}
                       </div>
                       <div className="conv-item-meta">
@@ -430,7 +480,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
                       </div>
                     </div>
                     <button
-                      className="btn-icon conv-delete"
+                      className="btn-icon btn-danger btn-xs conv-delete"
                       onClick={e => deleteSession(session.id, e)}
                       title="Delete"
                     >
@@ -458,11 +508,33 @@ export default function QueryPanel({ history, setHistory, onLoadingChange }) {
         {/* Top bar */}
         <div className="query-topbar">
           <button className="btn-icon btn-ghost border-none outline-none" onClick={() => setShowSessions(!showSessions)} title="Toggle conversations">
-            {showSessions ? <PanelLeft size={16} /> : <PanelRight size={16} />}
+            {showSessions ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
           </button>
-          <span className="query-topbar-title">
-            {sessions.find(s => s.id === currentSessionId)?.title || 'New Conversation'}
-          </span>
+          {editingTitleId === currentSessionId ? (
+            <div className="query-topbar-title-edit">
+              <input
+                type="text"
+                value={editingTitleValue}
+                onChange={e => setEditingTitleValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') saveEditingTitle();
+                  if (e.key === 'Escape') cancelEditingTitle();
+                }}
+                autoFocus
+                className="query-topbar-title-input"
+              />
+              <button className="btn btn-xs btn-success" onClick={saveEditingTitle}>Save</button>
+              <button className="btn btn-xs btn-ghost" onClick={cancelEditingTitle}>Cancel</button>
+            </div>
+          ) : (
+            <span 
+              className="query-topbar-title"
+              onClick={() => currentSessionId && startEditingTitle(currentSessionId, sessions.find(s => s.id === currentSessionId)?.title || 'New Conversation')}
+              title="Click to edit title"
+            >
+              {sessions.find(s => s.id === currentSessionId)?.title || 'New Conversation'}
+            </span>
+          )}
           <div className="query-topbar-actions">
             <label className="toggle-wrap">
               <span className="toggle-label">Async</span>

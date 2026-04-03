@@ -9,6 +9,7 @@ const { requireApiKey, requireSession } = require('./middleware/auth');
 const settingsController = require('./controllers/settingsController');
 const { createRateLimiter } = require('./middleware/rateLimiter');
 const modelsService      = require('./services/modelsService');
+const { logger }         = require('./utils/logger');
 
 // ── Auth ─────────────────────────────────────────────────────────────
 const loginRateLimit = createRateLimiter({
@@ -333,10 +334,13 @@ router.post('/sessions', requireSession, async (req, res) => {
   const { title } = req.body;
   const userId = req.user?.id || 'default-user';
   try {
+    logger.info(`[API] POST /sessions - User: ${userId}, Title: "${title}"`);
     const sessions = require('./services/sessionService');
     const session = await sessions.createSession(userId, title);
+    logger.info(`[API] Session created: ${session.id}`);
     res.status(201).json(session);
   } catch (err) {
+    logger.error(`[API] POST /sessions failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
@@ -344,10 +348,13 @@ router.post('/sessions', requireSession, async (req, res) => {
 router.get('/sessions', requireSession, async (req, res) => {
   const userId = req.user?.id || 'default-user';
   try {
+    logger.info(`[API] GET /sessions - User: ${userId}`);
     const sessions = require('./services/sessionService');
     const list = await sessions.getSessions(userId);
+    logger.info(`[API] Retrieved ${list.length} sessions for user ${userId}`);
     res.json({ sessions: list });
   } catch (err) {
+    logger.error(`[API] GET /sessions failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
@@ -356,13 +363,19 @@ router.get('/sessions/:sessionId', requireSession, async (req, res) => {
   const { sessionId } = req.params;
   const { limit = 50, offset = 0 } = req.query;
   try {
+    logger.info(`[API] GET /sessions/${sessionId} - User: ${req.user?.id || 'default-user'}, Limit: ${limit}, Offset: ${offset}`);
     const sessions = require('./services/sessionService');
     const session = await sessions.getSession(sessionId);
-    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (!session) {
+      logger.warn(`[API] Session not found: ${sessionId}`);
+      return res.status(404).json({ error: 'Session not found' });
+    }
     
     const messages = await sessions.getMessages(sessionId, offset, offset + limit - 1);
+    logger.info(`[API] Retrieved ${messages.length} messages from session ${sessionId}`);
     res.json({ ...session, messages });
   } catch (err) {
+    logger.error(`[API] GET /sessions/${sessionId} failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
@@ -372,23 +385,34 @@ router.post('/sessions/:sessionId/messages', requireSession, async (req, res) =>
   const { type, text, sources, fromCache, relevantChunks, jobId } = req.body;
   if (!type || !text) return res.status(400).json({ error: 'type and text required' });
   try {
+    const textPreview = text.substring(0, 100) + (text.length > 100 ? '...' : '');
+    logger.info(`[API] POST /sessions/${sessionId}/messages - Type: ${type}, User: ${req.user?.id || 'default-user'}, Text: "${textPreview}"`);
     const sessions = require('./services/sessionService');
     const msg = await sessions.addMessage(sessionId, { type, text, sources, fromCache, relevantChunks, jobId });
+    logger.info(`[API] Message added to session ${sessionId}`);
     res.status(201).json(msg);
   } catch (err) {
+    logger.error(`[API] POST /sessions/${sessionId}/messages failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
 
 router.put('/sessions/:sessionId', requireSession, async (req, res) => {
   const { sessionId } = req.params;
-  const { title } = req.body;
-  if (!title) return res.status(400).json({ error: 'title required' });
+  const { title, tags } = req.body;
   try {
+    logger.info(`[API] PUT /sessions/${sessionId} - User: ${req.user?.id || 'default-user'}, Title: "${title || 'unchanged'}", Tags: [${tags?.join(', ') || 'none'}]`);
     const sessions = require('./services/sessionService');
-    await sessions.updateSessionTitle(sessionId, title);
+    if (title) {
+      await sessions.updateSessionTitle(sessionId, title);
+    }
+    if (tags) {
+      await sessions.updateSessionTags(sessionId, tags);
+    }
+    logger.info(`[API] Session ${sessionId} updated successfully`);
     res.json({ message: 'Session updated' });
   } catch (err) {
+    logger.error(`[API] PUT /sessions/${sessionId} failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
@@ -397,10 +421,13 @@ router.delete('/sessions/:sessionId', requireSession, async (req, res) => {
   const { sessionId } = req.params;
   const userId = req.user?.id || 'default-user';
   try {
+    logger.info(`[API] DELETE /sessions/${sessionId} - User: ${userId}`);
     const sessions = require('./services/sessionService');
     await sessions.deleteSession(userId, sessionId);
+    logger.info(`[API] Session ${sessionId} deleted by user ${userId}`);
     res.json({ message: 'Session deleted' });
   } catch (err) {
+    logger.error(`[API] DELETE /sessions/${sessionId} failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
@@ -408,10 +435,13 @@ router.delete('/sessions/:sessionId', requireSession, async (req, res) => {
 router.post('/sessions/:sessionId/clear', requireSession, async (req, res) => {
   const { sessionId } = req.params;
   try {
+    logger.info(`[API] POST /sessions/${sessionId}/clear - User: ${req.user?.id || 'default-user'}`);
     const sessions = require('./services/sessionService');
     await sessions.clearSession(sessionId);
+    logger.info(`[API] Session ${sessionId} cleared`);
     res.json({ message: 'Session cleared' });
   } catch (err) {
+    logger.error(`[API] POST /sessions/${sessionId}/clear failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });

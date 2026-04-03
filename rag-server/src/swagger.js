@@ -138,7 +138,7 @@ const options = {
               async:  { type: 'boolean', default: false, description: 'If true, returns a jobId to poll instead of waiting' },
               options:{ type: 'object', properties: {
                 topK: { type: 'integer', default: 5 },
-                tags: { type: 'array', items: { type: 'string' }, description: 'Filter query to documents with these tags (AND logic)' }
+                tags: { type: 'array', items: { type: 'string' }, description: 'Filter query to documents with these tags (OR logic)' }
               } }
             } } } }
           },
@@ -211,7 +211,7 @@ const options = {
         get: {
           tags: ['Documents'], summary: 'List all indexed documents',
           parameters: [
-            { name: 'tags', in: 'query', required: false, schema: { type: 'string' }, description: 'Comma-separated tags to filter by (AND logic)' }
+            { name: 'tags', in: 'query', required: false, schema: { type: 'string' }, description: 'Comma-separated tags to filter by (OR logic)' }
           ],
           responses: {
             200: { description: 'Document list', content: { 'application/json': { schema: { type: 'object', properties: {
