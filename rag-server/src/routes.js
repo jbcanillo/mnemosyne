@@ -113,6 +113,7 @@ router.get('/documents',                     requireSession, documentController.
 router.get('/documents/stats',               requireSession, documentController.stats);
 router.get('/documents/tags',                requireSession, documentController.getTags);
 router.get('/documents/ingest-status/:jobId',requireSession, statusLimiter, documentController.ingestStatus);
+router.get('/documents/:id/download',        requireSession, documentController.download);
 router.delete('/documents/:id',              requireSession, documentController.remove);
 router.put('/documents/:id/tags',            requireSession, documentController.updateTags);
 

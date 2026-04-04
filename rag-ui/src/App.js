@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { User, LogOut, MessageSquare, BookOpen, Activity, Settings } from 'lucide-react';
+import { User, LogOut, MessageSquare, BookOpen, Activity, Settings, Sun, Moon } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import QueryPanel from './components/QueryPanel';
 import DocumentsPanel from './components/DocumentsPanel';
@@ -25,6 +25,7 @@ function AuthenticatedApp() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isQueryLoading, setIsQueryLoading] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
 
   // ── Persistent chat history — lives here so tab switches don't reset it ──
   const [chatHistory, setChatHistory] = useState([]);
@@ -40,6 +41,17 @@ function AuthenticatedApp() {
       window.removeEventListener('rag:unauthorized', onUnauthorized);
     };
   }, [logout]);
+
+  // Apply theme
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  // Toggle theme
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
   // Track scroll position to show "scroll to top" button
   useEffect(() => {
@@ -109,6 +121,9 @@ function AuthenticatedApp() {
           </div>
         </div>
         <div className="header-right">
+          <button className="theme-toggle-btn" onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
+            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
           <div className="session-info">
             <span className="session-user"><User size={14} /> {username}</span>
             {sessionExpirySummary() && (
@@ -168,6 +183,8 @@ function AuthenticatedApp() {
           <span>© {new Date().getFullYear()} Mnemosyne RAG Knowledge Base</span>
           <span className="footer-sep">·</span>
           <span>Self-hosted Retrieval-Augmented Generation</span>
+          <span className="footer-sep">·</span>
+          <span>Powered by <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer">OpenRouter</a></span>
         </div>
       </footer>
 

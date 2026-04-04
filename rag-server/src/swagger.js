@@ -207,6 +207,13 @@ const options = {
           }
         }
       },
+      '/documents/{id}/download': {
+        get: {
+          tags: ['Documents'], summary: 'Download a document',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: { description: 'Document downloaded' }, 404: { description: 'Document not found' } }
+        }
+      },
       '/documents': {
         get: {
           tags: ['Documents'], summary: 'List all indexed documents',

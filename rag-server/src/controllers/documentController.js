@@ -7,6 +7,13 @@ const llmService     = require('../services/llmService');
 const queueService   = require('../services/queueService');
 const { logger }     = require('../utils/logger');
 
+const DOCUMENTS_DIR = process.env.DOCUMENTS_DIR || '/data/documents';
+
+// Ensure documents directory exists
+if (!fs.existsSync(DOCUMENTS_DIR)) {
+  fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
+}
+
 // ── Ingest job processor ─────────────────────────────────────────────
 queueService.processIngests(async (job) => {
   const { filePath, filename, fileType, documentId, tags = [] } = job.data;
@@ -110,6 +117,10 @@ exports.upload = async (req, res) => {
   const documentId = uuidv4();
 
   try {
+    // Copy file to persistent storage
+    const persistentPath = path.join(DOCUMENTS_DIR, `${documentId}_${filename}`);
+    fs.copyFileSync(filePath, persistentPath);
+
     const job = await queueService.addIngest({ filePath, filename, fileType: ext, documentId, tags });
     logger.info(`[Upload] Queued: ${filename} → job ${job.id}`);
 
@@ -173,8 +184,19 @@ exports.remove = async (req, res) => {
   const { id } = req.params;
   if (!id) return res.status(400).json({ error: 'Document ID required' });
   try {
-    await vectorStore.deleteByDocumentId(id);
-    res.json({ message: `Document ${id} removed from knowledge base.` });
+    const docs = await vectorStore.listDocuments();
+    const doc = docs.find(d => d.id === id);
+    if (doc) {
+      const filePath = path.join(DOCUMENTS_DIR, `${id}_${doc.filename}`);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        logger.info(`Deleted file for document ${id}: ${filePath}`);
+      }
+      await vectorStore.deleteByDocumentId(id);
+      res.json({ message: `Document ${id} removed from knowledge base.` });
+    } else {
+      logger.warn(`Document ${id} not found in list after deletion attempt.`);
+    }
   } catch (err) {
     logger.error('Delete document error:', err);
     res.status(500).json({ error: 'Failed to delete document' });
@@ -206,6 +228,46 @@ exports.getTags = async (req, res) => {
 };
 
 /**
+ * GET /api/documents/:id/download
+ * Download the original uploaded document
+ */
+exports.download = async (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: 'Document ID required' });
+
+  try {
+    // Find the document to get filename
+    const docs = await vectorStore.listDocuments();
+    const doc = docs.find(d => d.id === id);
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const filePath = path.join(DOCUMENTS_DIR, `${id}_${doc.filename}`);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not available on server' });
+    }
+
+    // Set headers for download
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${doc.filename}"`);
+
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    fileStream.on('error', (err) => {
+      logger.error('Download stream error:', err);
+      res.status(500).json({ error: 'Failed to download file' });
+    });
+
+  } catch (err) {
+    logger.error('Download document error:', err);
+    res.status(500).json({ error: 'Failed to download document' });
+  }
+};
+
+/**
  * PUT /api/documents/:id/tags
  * Update tags for a specific document
  */
@@ -221,7 +283,6 @@ exports.updateTags = async (req, res) => {
     return res.status(400).json({ error: 'Tags must be an array' });
   }
 
-  // Validate and normalize tags
   const normalizedTags = tags
     .map(t => String(t).trim().toLowerCase())
     .filter(t => t.length > 0);

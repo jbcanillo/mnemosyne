@@ -23,8 +23,8 @@
 .bg-grid {
   position: absolute; inset: 0;
   background-image:
-    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
   background-size: 48px 48px;
 }
 
@@ -32,9 +32,9 @@
 .login-card {
   position: relative; z-index: 1;
   width: 100%; max-width: 400px;
-  background: rgba(8,12,20,0.85);
+  background: var(--bg2);
   backdrop-filter: blur(40px);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid var(--border2);
   border-radius: 24px;
   padding: 44px 40px 36px;
   box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,92,252,0.1);
@@ -78,10 +78,8 @@
   position: relative; z-index: 1;
   display: flex; flex-direction: column; align-items: center; gap: 24px;
   padding: 40px; border-radius: 24px;
-  background: rgba(8,12,20,0.85);
+  background: var(--bg);
   backdrop-filter: blur(40px);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,92,252,0.1);
 }
 
 .login-loading-logo {
@@ -109,7 +107,7 @@
 
 .login-progress-bar {
   width: 200px; height: 3px;
-  background: rgba(255,255,255,0.08);
+  background: var(--border2);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -136,15 +134,15 @@
 }
 .field-input {
   width: 100%; padding: 11px 16px;
-  background: rgba(255,255,255,0.04);
+  background: var(--bg3);
   border: 1px solid var(--border2); border-radius: 10px;
   color: var(--text); font-size: 14px; font-family: var(--sans); outline: none;
   transition: all 0.2s;
 }
 .field-input:focus {
   border-color: var(--accent);
-  background: rgba(124,92,252,0.06);
-  box-shadow: 0 0 0 3px rgba(124,92,252,0.12);
+  background: var(--dim);
+  box-shadow: 0 0 0 3px var(--dim2);
 }
 .field-input::placeholder { color: var(--text3); }
 .field-input:disabled { opacity: 0.4; }

@@ -295,13 +295,39 @@ export default function DocumentsPanel({ onRefresh }) {
   async function handleDownload(doc) {
     try {
       // Create download URL for the document
-      const downloadUrl = `${process.env.REACT_APP_API_URL || '/api'}/documents/${doc.id}/download`;
+      const downloadUrl = `${process.env.REACT_APP_API_URL || ''}/documents/${doc.id}/download`;
+      
+      // Create a temporary link with proper headers
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = doc.filename;
+      
+      // Add session token to the request via fetch to handle auth
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: {
+          'X-Session-Token': sessionStorage.getItem('rag_token')
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          toast.error('Session expired. Please log in again.');
+          return;
+        }
+        throw new Error(`Download failed: ${response.statusText}`);
+      }
+      
+      // Create object URL from the response blob
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      link.href = objectUrl;
+      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
       toast.success(`Downloading "${doc.filename}"`);
     } catch (err) {
       toast.error('Download failed: ' + err.message);
@@ -423,7 +449,7 @@ export default function DocumentsPanel({ onRefresh }) {
         {getSortedDocuments().length === 0 && documents.length === 0
           ? <div className="empty-state">
               <div className="empty-icon"><Inbox size={40} /></div>
-              <div className="empty-label">No documents yet. Upload your first ERP reference document above.</div>
+              <div className="empty-label">No documents uploaded yet.</div>
             </div>
           : getSortedDocuments().length === 0 && searchFilename.trim()
           ? <div className="empty-state">

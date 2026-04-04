@@ -195,180 +195,192 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
           )}
         </div>
 
-        <div className="model-info-grid">
-          {/* Model identity */}
-          <div className="mi-card mi-card-main">
-            <div className="mi-label">LLM</div>
-            <div className="mi-model-name">{model}</div>
-            <div className="mi-sub">via OpenRouter · {or?.status === 'ok' ? 'Connected' : 'Disconnected'}</div>
-            <div className="mi-divider" />
-            <div className="mi-label">Embedding</div>
-            <div className="mi-embed-name">nomic-embed-text</div>
-            <div className="mi-sub">Local · Ollama · {ollama?.status === 'ok' ? 'Connected' : 'Disconnected'}</div>
-          </div>
+        <div className="sp-section-body">
+          <div className="model-info-grid">
+            {/* Model identity */}
+            <div className="mi-card mi-card-main">
+              <div className="mi-label">LLM</div>
+              <div className="mi-model-name">{model}</div>
+              <div className="mi-sub">via OpenRouter · {or?.status === 'ok' ? 'Connected' : 'Disconnected'}</div>
+              <div className="mi-divider" />
+              <div className="mi-label">Embedding</div>
+              <div className="mi-embed-name">nomic-embed-text</div>
+              <div className="mi-sub">Local · Ollama · {ollama?.status === 'ok' ? 'Connected' : 'Disconnected'}</div>
+            </div>
 
-          {/* Token consumption */}
-          <div className="mi-card">
-            <div className="mi-label">Session Token Usage</div>
-            <div className="mi-stat-row">
-              <div className="mi-stat">
-                <div className="mi-stat-val">{(tu?.totalTokens ?? 0).toLocaleString()}</div>
-                <div className="mi-stat-label">Total Tokens</div>
-              </div>
-              <div className="mi-stat">
-                <div className="mi-stat-val">{(tu?.totalPromptTokens ?? 0).toLocaleString()}</div>
-                <div className="mi-stat-label">Prompt</div>
-              </div>
-              <div className="mi-stat">
-                <div className="mi-stat-val">{(tu?.totalCompletionTokens ?? 0).toLocaleString()}</div>
-                <div className="mi-stat-label">Completion</div>
-              </div>
-            </div>
-            <div className="mi-divider" />
-            <div className="mi-stat-row">
-              <div className="mi-stat">
-                <div className="mi-stat-val">{tu?.queryCount ?? 0}</div>
-                <div className="mi-stat-label">Queries</div>
-              </div>
-              <div className="mi-stat">
-                <div className="mi-stat-val accent-warn">${estimatedCost}</div>
-                <div className="mi-stat-label">Est. Cost</div>
-              </div>
-              <div className="mi-stat">
-                <div className="mi-stat-val">
-                  {tu?.queryCount ? Math.round(tu.totalTokens / tu.queryCount) : 0}
+            {/* Token consumption */}
+            <div className="mi-card">
+              <div className="mi-label">Session Token Usage</div>
+              <div className="mi-stat-row">
+                <div className="mi-stat">
+                  <div className="mi-stat-val">{(tu?.totalTokens ?? 0).toLocaleString()}</div>
+                  <div className="mi-stat-label">Total Tokens</div>
                 </div>
-                <div className="mi-stat-label">Avg / Query</div>
+                <div className="mi-stat">
+                  <div className="mi-stat-val">{(tu?.totalPromptTokens ?? 0).toLocaleString()}</div>
+                  <div className="mi-stat-label">Prompt</div>
+                </div>
+                <div className="mi-stat">
+                  <div className="mi-stat-val">{(tu?.totalCompletionTokens ?? 0).toLocaleString()}</div>
+                  <div className="mi-stat-label">Completion</div>
+                </div>
               </div>
+              <div className="mi-divider" />
+              <div className="mi-stat-row">
+                <div className="mi-stat">
+                  <div className="mi-stat-val">{tu?.queryCount ?? 0}</div>
+                  <div className="mi-stat-label">Queries</div>
+                </div>
+                <div className="mi-stat">
+                  <div className="mi-stat-val accent-warn">${estimatedCost}</div>
+                  <div className="mi-stat-label">Est. Cost</div>
+                </div>
+                <div className="mi-stat">
+                  <div className="mi-stat-val">
+                    {tu?.queryCount ? Math.round(tu.totalTokens / tu.queryCount) : 0}
+                  </div>
+                  <div className="mi-stat-label">Avg / Query</div>
+                </div>
+              </div>
+              {tu?.sessionStart && (
+                <div className="mi-since">Since {new Date(tu.sessionStart).toLocaleString()}</div>
+              )}
             </div>
-            {tu?.sessionStart && (
-              <div className="mi-since">Since {new Date(tu.sessionStart).toLocaleString()}</div>
+
+            {/* Per-model breakdown */}
+            {tu?.byModel && Object.keys(tu.byModel).length > 0 && (
+              <div className="mi-card mi-card-full">
+                <div className="mi-label">Usage by Model</div>
+                <div className="mi-model-table">
+                  <div className="mi-model-table-head">
+                    <span>Model</span><span>Queries</span><span>Tokens</span><span>Prompt</span><span>Completion</span>
+                  </div>
+                  {Object.entries(tu.byModel).map(([mid, stats]) => (
+                    <div key={mid} className="mi-model-row">
+                      <span className="mi-model-id">{mid.split('/').pop()}</span>
+                      <span>{stats.queries}</span>
+                      <span>{stats.total.toLocaleString()}</span>
+                      <span>{stats.prompt.toLocaleString()}</span>
+                      <span>{stats.completion.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
-
-          {/* Per-model breakdown */}
-          {tu?.byModel && Object.keys(tu.byModel).length > 0 && (
-            <div className="mi-card mi-card-full">
-              <div className="mi-label">Usage by Model</div>
-              <div className="mi-model-table">
-                <div className="mi-model-table-head">
-                  <span>Model</span><span>Queries</span><span>Tokens</span><span>Prompt</span><span>Completion</span>
-                </div>
-                {Object.entries(tu.byModel).map(([mid, stats]) => (
-                  <div key={mid} className="mi-model-row">
-                    <span className="mi-model-id">{mid.split('/').pop()}</span>
-                    <span>{stats.queries}</span>
-                    <span>{stats.total.toLocaleString()}</span>
-                    <span>{stats.prompt.toLocaleString()}</span>
-                    <span>{stats.completion.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* ── Queue metrics ── */}
-      {q && (
+       {/* ── Queue metrics ── */}
+       {q && (
         <div className="sp-section">
-          <div className="sp-section-title"><span className="sp-section-icon"><Clock size={14} /></span>Queue Metrics</div>
-          <div className="metrics-row">
-            <Metric label="Waiting"   value={q.waiting}   color="warn" />
-            <Metric label="Active"    value={q.active}    color="accent2" />
-            <Metric label="Completed" value={q.completed} color="success" />
-            <Metric label="Failed"    value={q.failed}    color="danger" />
+          <div className="sp-section-header">
+            <div className="sp-section-title"><span className="sp-section-icon"><Clock size={14} /></span>Queue Metrics</div>
+          </div>
+          <div className="sp-section-body">
+            <div className="metrics-row">
+              <Metric label="Waiting"   value={q.waiting}   color="warn" />
+              <Metric label="Active"    value={q.active}    color="accent2" />
+              <Metric label="Completed" value={q.completed} color="success" />
+              <Metric label="Failed"    value={q.failed}    color="danger" />
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── Similarity debug ── */}
-      <div className="sp-section">
-        <div className="sp-section-title"><span className="sp-section-icon"><Search size={14} /></span>Similarity Debug</div>
-        <div className="debug-desc">
-          Test any query to see raw similarity scores. Scores below <code>{info?.minRelevanceScore ?? '0.15'}</code> are filtered out.
-        </div>
-        <form className="debug-form" onSubmit={runDebug}>
-          <input className="debug-input" value={debugQ} onChange={e => setDebugQ(e.target.value)} placeholder="Enter a test query…" />
-          <button className="btn btn-primary btn-xs" type="submit" disabled={debugLoading || !debugQ.trim()}>
-            {debugLoading ? <span className="spinner-xs" /> : 'Run'}
-          </button>
-        </form>
-        {debugResult && (
-          <div className="debug-result">
-            <div className="debug-meta">
-              <span>{debugResult.totalChunksReturned} chunks · threshold {debugResult.currentThreshold}</span>
-              {debugResult.recommendation && <span className="debug-rec-inline">💡 {debugResult.recommendation}</span>}
-            </div>
-            <div className="debug-chunks">
-              {debugResult.chunks?.map((c, i) => (
-                <div key={i} className={`debug-chunk ${c.relevanceScore >= (debugResult.currentThreshold ?? 0.15) ? 'dc-pass' : 'dc-fail'}`}>
-                  <div className="dc-header">
-                    <span className="dc-file"><FileText size={12} /> {c.filename}</span>
-                    <span className="dc-chunk">chunk {c.chunkIndex}</span>
-                    <span className="dc-score">{c.relevanceScore.toFixed(4)} {c.relevanceScore >= (debugResult.currentThreshold ?? 0.15) ? '✓' : '✗'}</span>
-                  </div>
-                  <div className="dc-preview">{c.preview}</div>
-                </div>
-              ))}
-              {!debugResult.chunks?.length && <div className="debug-empty">No chunks found. Upload documents first.</div>}
-            </div>
-          </div>
-        )}
-      </div>
+       {/* ── Similarity debug ── */}
+       <div className="sp-section">
+         <div className="sp-section-header">
+           <div className="sp-section-title"><span className="sp-section-icon"><Search size={14} /></span>Similarity Debug</div>
+         </div>
+         <div className="sp-section-body">
+           <div className="debug-desc">
+             Test any query to see raw similarity scores. Scores below <code>{info?.minRelevanceScore ?? '0.15'}</code> are filtered out.
+           </div>
+           <form className="debug-form" onSubmit={runDebug}>
+             <input className="debug-input" value={debugQ} onChange={e => setDebugQ(e.target.value)} placeholder="Enter a test query…" />
+             <button className="btn btn-primary btn-xs" type="submit" disabled={debugLoading || !debugQ.trim()}>
+               {debugLoading ? <span className="spinner-xs" /> : 'Run'}
+             </button>
+           </form>
+           {debugResult && (
+             <div className="debug-result">
+               <div className="debug-meta">
+                 <span>{debugResult.totalChunksReturned} chunks · threshold {debugResult.currentThreshold}</span>
+                 {debugResult.recommendation && <span className="debug-rec-inline">💡 {debugResult.recommendation}</span>}
+               </div>
+               <div className="debug-chunks">
+                 {debugResult.chunks?.map((c, i) => (
+                   <div key={i} className={`debug-chunk ${c.relevanceScore >= (debugResult.currentThreshold ?? 0.15) ? 'dc-pass' : 'dc-fail'}`}>
+                     <div className="dc-header">
+                       <span className="dc-file"><FileText size={12} /> {c.filename}</span>
+                       <span className="dc-chunk">chunk {c.chunkIndex}</span>
+                       <span className="dc-score">{c.relevanceScore.toFixed(4)} {c.relevanceScore >= (debugResult.currentThreshold ?? 0.15) ? '✓' : '✗'}</span>
+                     </div>
+                     <div className="dc-preview">{c.preview}</div>
+                   </div>
+                 ))}
+                 {!debugResult.chunks?.length && <div className="debug-empty">No chunks found. Upload documents first.</div>}
+               </div>
+             </div>
+           )}
+         </div>
+       </div>
 
-      {/* ── Live Log Viewer ── */}
-      <div className="sp-section">
-        <div className="sp-section-header">
-          <div className="sp-section-title"><span className="sp-section-icon"><Terminal size={14} /></span>Live Log Viewer</div>
-          <button className="btn btn-ghost btn-xs" onClick={loadLogs} disabled={logsLoading}>
-            {logsLoading ? <span className="spinner-xs" /> : <RefreshCw size={12} />} Refresh
-          </button>
-        </div>
-        <div className="log-search-wrap">
-          <input
-            type="text"
-            placeholder="Search logs…"
-            className="log-search-input"
-            value={logSearch}
-            onChange={e => setLogSearch(e.target.value)}
-          />
-        </div>
-        <div className="log-viewer">
-          {logsLoading ? (
-            <div className="log-empty">Loading logs…</div>
-          ) : logsError ? (
-            <div className="log-error">Error loading logs: {logsError}</div>
-          ) : logs.length === 0 ? (
-            <div className="log-empty">No logs available. View server logs with: <code>docker logs mnemosyne-rag-server</code></div>
-          ) : (
-            <div className="log-entries">
-              {logs
-                .filter(log => {
-                  if (!logSearch.trim()) return true;
-                  const msg = log.message || (typeof log === 'string' ? log : JSON.stringify(log));
-                  const content = `${log.timestamp || ''} ${log.level || ''} ${msg}`.toLowerCase();
-                  return content.includes(logSearch.toLowerCase());
-                })
-                .map((log, i) => (
-                  <div key={i} className={`log-entry log-${log.level || 'info'}`}>
-                    <span className="log-time">{log.timestamp || ''}</span>
-                    <span className="log-level">{(log.level || 'info').toUpperCase()}</span>
-                    <span className="log-message">{log.message || (typeof log === 'string' ? log : JSON.stringify(log))}</span>
-                  </div>
-                ))}
-              {logs.filter(log => {
-                if (!logSearch.trim()) return false;
-                const msg = log.message || (typeof log === 'string' ? log : JSON.stringify(log));
-                const content = `${log.timestamp || ''} ${log.level || ''} ${msg}`.toLowerCase();
-                return content.includes(logSearch.toLowerCase());
-              }).length === 0 && logSearch.trim() && (
-                <div className="log-empty">No logs match "{logSearch}"</div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+       {/* ── Live Log Viewer ── */}
+       <div className="sp-section">
+         <div className="sp-section-header">
+           <div className="sp-section-title"><span className="sp-section-icon"><Terminal size={14} /></span>Live Log Viewer</div>
+           <button className="btn btn-ghost btn-xs" onClick={loadLogs} disabled={logsLoading}>
+             {logsLoading ? <span className="spinner-xs" /> : <RefreshCw size={12} />} Refresh
+           </button>
+         </div>
+         <div className="sp-section-body">
+           <div className="log-search-wrap">
+             <input
+               type="text"
+               placeholder="Search logs…"
+               className="log-search-input"
+               value={logSearch}
+               onChange={e => setLogSearch(e.target.value)}
+             />
+           </div>
+           <div className="log-viewer">
+             {logsLoading ? (
+               <div className="log-empty">Loading logs…</div>
+             ) : logsError ? (
+               <div className="log-error">Error loading logs: {logsError}</div>
+             ) : logs.length === 0 ? (
+               <div className="log-empty">No logs available. View server logs with: <code>docker logs mnemosyne-rag-server</code></div>
+             ) : (
+               <div className="log-entries">
+                 {logs
+                   .filter(log => {
+                     if (!logSearch.trim()) return true;
+                     const msg = log.message || (typeof log === 'string' ? log : JSON.stringify(log));
+                     const content = `${log.timestamp || ''} ${log.level || ''} ${msg}`.toLowerCase();
+                     return content.includes(logSearch.toLowerCase());
+                   })
+                   .map((log, i) => (
+                     <div key={i} className={`log-entry log-${log.level || 'info'}`}>
+                       <span className="log-time">{log.timestamp || ''}</span>
+                       <span className="log-level">{(log.level || 'info').toUpperCase()}</span>
+                       <span className="log-message">{log.message || (typeof log === 'string' ? log : JSON.stringify(log))}</span>
+                     </div>
+                   ))}
+                 {logs.filter(log => {
+                   if (!logSearch.trim()) return false;
+                   const msg = log.message || (typeof log === 'string' ? log : JSON.stringify(log));
+                   const content = `${log.timestamp || ''} ${log.level || ''} ${msg}`.toLowerCase();
+                   return content.includes(logSearch.toLowerCase());
+                 }).length === 0 && logSearch.trim() && (
+                   <div className="log-empty">No logs match "{logSearch}"</div>
+                 )}
+               </div>
+             )}
+           </div>
+         </div>
+       </div>
 
     </div>
   );
