@@ -2,10 +2,10 @@
 
 .dropzone {
   border: 2px dashed var(--border2); border-radius: var(--radius-lg); padding: 36px;
-  text-align: center; cursor: pointer; transition: all 0.2s; background: rgba(8,12,20,0.6); backdrop-filter: blur(20px);
+  text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg2); backdrop-filter: blur(20px);
   display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
-.dropzone:hover, .dropzone.drag-active { border-color: var(--accent); box-shadow: 0 0 20px rgba(124,92,252,0.15); background: var(--accent-dim); }
+.dropzone:hover, .dropzone.drag-active { border-color: var(--accent); box-shadow: 0 0 20px var(--dim); background: var(--dim); }
 .dropzone-icon { font-size: 36px; }
 .dropzone-text { font-size: 15px; font-weight: 500; color: var(--text2); }
 .dropzone-text.active { color: var(--accent); }
@@ -15,7 +15,7 @@
 .tag-input-container { display: flex; flex-direction: column; gap: 4px; }
 .tag-input-wrapper {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
-  padding: 8px 10px; background: rgba(255,255,255,0.04);
+  padding: 8px 10px; background: var(--bg3);
   border: 1px solid var(--border2); border-radius: var(--radius);
   min-height: 38px; cursor: text;
 }
@@ -49,7 +49,7 @@
 /* ── Tag filter bar ── */
 .tag-filter-bar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  padding: 10px 16px; background: rgba(8,12,20,0.6); backdrop-filter: blur(20px);
+  padding: 10px 16px; background: var(--bg2); backdrop-filter: blur(20px);
   border: 1px solid var(--border); border-radius: var(--radius);
 }
 .tag-filter-label {
@@ -60,15 +60,15 @@
   display: flex; flex-wrap: wrap; gap: 6px; flex: 1;
 }
 .tag-filter-chip {
-  padding: 4px 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--border2);
+  padding: 4px 10px; background: var(--bg3); border: 1px solid var(--border2);
   border-radius: 14px; font-size: 11px; font-weight: 500; color: var(--text3);
   cursor: pointer; transition: all 0.15s;
 }
 .tag-filter-chip:hover {
-  background: rgba(255,255,255,0.08); border-color: var(--border);
+  background: var(--bg4); border-color: var(--border);
 }
 .tag-filter-chip.active {
-  background: rgba(124,92,252,0.15); border-color: rgba(124,92,252,0.4); color: var(--accent);
+  background: var(--dim); border-color: var(--accent); color: var(--accent);
 }
 
 /* ── Document tags cell ── */
@@ -91,7 +91,7 @@
 }
 
 .uploads-list { display: flex; flex-direction: column; gap: 8px; }
-.upload-item { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; background: rgba(8,12,20,0.6); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: var(--radius); }
+.upload-item { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; background: var(--bg2); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: var(--radius); }
 .upload-info { display: flex; justify-content: space-between; align-items: center; }
 .upload-name { font-size: 13px; color: var(--text); font-family: var(--mono); }
 .upload-status { font-size: 12px; }
@@ -104,7 +104,7 @@
 /* ── Document Search Bar ── */
 .document-search-bar {
   padding: 12px 16px;
-  background: rgba(8,12,20,0.6);
+  background: var(--bg2);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -117,7 +117,7 @@
   border-radius: 6px;
   font-size: 13px;
   font-family: inherit;
-  background: rgba(0,0,0,0.2);
+  background: var(--bg3);
   color: inherit;
   transition: all 0.2s;
 }
@@ -129,12 +129,12 @@
 .document-search-input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(124,92,252,0.15);
+  box-shadow: 0 0 0 2px var(--dim);
 }
 
 /* ── Document Filter Card ── */
 .document-filter-card {
-  background: rgba(8,12,20,0.6);
+  background: var(--bg2);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -147,7 +147,7 @@
   justify-content: space-between;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
-  background: rgba(255,255,255,0.02);
+  background: var(--bg3);
 }
 
 .filter-card-title {
@@ -192,36 +192,38 @@
 
 .filter-tag-chip {
   padding: 4px 10px;
-  background: rgba(255,255,255,0.04);
+  background: var(--bg3);
   border: 1px solid var(--border2);
   border-radius: 14px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text3);
-  cursor: pointer;
-  transition: all 0.15s;
+  font-size: 11px; font-weight: 500; color: var(--text3);
+  cursor: pointer; transition: all 0.15s;
 }
 
 .filter-tag-chip:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: var(--border);
+  background: var(--bg4); border-color: var(--border);
 }
 
 .filter-tag-chip.active {
-  background: rgba(124,92,252,0.15);
-  border-color: rgba(124,92,252,0.4);
-  color: var(--accent);
+  background: var(--dim); border-color: var(--accent); color: var(--accent);
 }
 
-.docs-table-wrap { background: rgba(8,12,20,0.6); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
-.docs-table-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text3); }
+.filter-tag-chip:hover {
+  background: var(--bg4); border-color: var(--border);
+}
+
+.filter-tag-chip.active {
+  background: var(--dim); border-color: var(--accent); color: var(--accent);
+}
+
+.docs-table-wrap { background: var(--bg3); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.docs-table-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text2); }
 .docs-table { width: 100%; border-collapse: collapse; min-width: 600px; }
 .docs-table th { text-align: left; padding: 10px 20px; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid var(--border); background: var(--bg); cursor: pointer; user-select: none; transition: background-color 0.2s; }
-.docs-table th:hover { background: rgba(255,255,255,0.05); }
+.docs-table th:hover { background: var(--bg4); }
 .docs-table th > div { display: flex; align-items: center; gap: 4px; }
 .docs-table td { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13px; }
 .docs-table tr:last-child td { border-bottom: none; }
-.docs-table tr:hover td { background: rgba(255,255,255,0.03); }
+.docs-table tr:hover td { background: var(--bg4); }
 .doc-name-cell { display: flex; align-items: center; gap: 10px; }
 .file-icon     { font-size: 18px; }
 .doc-filename  { color: var(--text); font-weight: 500; word-break: break-all; }

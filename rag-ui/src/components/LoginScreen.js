@@ -130,6 +130,7 @@ export default function LoginScreen() {
           <span>© {new Date().getFullYear()} Mnemosyne RAG Knowledge Base</span>
           <span><br /></span>
           <span>Self-hosted Retrieval-Augmented Generation</span>
+          <span><br /></span>
           <span>Powered by <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer">OpenRouter</a></span>
         </div>
       </div>

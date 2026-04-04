@@ -7,26 +7,26 @@
 
 /* ── Card ── */
 .sp-card {
-  background: rgba(8,12,20,0.6);
+  background: var(--bg2);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  padding: 22px 24px;
-  display: flex; flex-direction: column; gap: 16px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
 }
-.sp-card-docs {
-  border-color: rgba(124,92,252,0.2);
-  background: rgba(124,92,252,0.04);
-}
-
 .sp-card-header {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+  padding: 14px 16px; background: var(--bg3);
+  border-bottom: 1px solid var(--border);
 }
 .sp-card-title {
   display: flex; align-items: center; gap: 8px;
-  font-size: 14px; font-weight: 700; color: var(--text);
+  font-size: 13px; font-weight: 600; color: var(--text2);
 }
-.sp-card-icon { font-size: 16px; }
+.sp-card-body {
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 16px;
+}
 
 .sp-desc { font-size: 12px; color: var(--text3); line-height: 1.6; }
 .sp-link { color: var(--accent2); text-decoration: none; }
@@ -86,7 +86,7 @@
 
 .sp-input, .sp-select {
   padding: 10px 14px;
-  background: rgba(255,255,255,0.04);
+  background: var(--bg3);
   border: 1px solid var(--border2);
   border-radius: var(--radius);
   color: var(--text); font-size: 13px; font-family: var(--sans);
@@ -94,7 +94,7 @@
 }
 .sp-input:focus, .sp-select:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(124,92,252,0.1);
+  box-shadow: 0 0 0 3px var(--dim);
 }
 .sp-input::placeholder { color: var(--text3); }
 .sp-select option { background: var(--bg3); color: var(--text); }
@@ -167,15 +167,15 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: rgba(8,12,20,0.4);
+  background: var(--bg3);
   border: 1px solid var(--border2);
   border-radius: var(--radius-md);
   gap: 12px;
 }
 
 .model-item.active {
-  background: rgba(124,92,252,0.1);
-  border-color: rgba(124,92,252,0.3);
+  background: var(--dim);
+  border-color: var(--accent);
 }
 
 .model-info {
@@ -327,7 +327,7 @@
 }
 .backup-item {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 8px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border2);
+  padding: 8px 12px; background: var(--bg3); border: 1px solid var(--border2);
   border-radius: var(--radius);
 }
 .backup-info { flex: 1; min-width: 0; }

@@ -183,6 +183,7 @@ function AuthenticatedApp() {
           <span>© {new Date().getFullYear()} Mnemosyne RAG Knowledge Base</span>
           <span className="footer-sep">·</span>
           <span>Self-hosted Retrieval-Augmented Generation</span>
+          <span className="footer-sep">·</span>
           <span>Powered by <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer">OpenRouter</a></span>
         </div>
       </footer>
