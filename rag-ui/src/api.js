@@ -124,6 +124,12 @@ export const ragApi = {
   updateSession:  (sessionId, data) => api.put(`/sessions/${sessionId}`, data),
   deleteSession:  (sessionId) => api.delete(`/sessions/${sessionId}`),
   clearSession:   (sessionId) => api.post(`/sessions/${sessionId}/clear`),
+
+  // ── Analytics ────────────────────────────────────────────────────────
+  getAnalyticsOverview: () => api.get('/analytics/overview'),
+  getAnalyticsTags:   () => api.get('/analytics/tags'),
+  getAnalyticsSessions: () => api.get('/analytics/sessions'),
+  getAnalyticsUsage:  () => api.get('/analytics/usage'),
 };
 
 export default ragApi;

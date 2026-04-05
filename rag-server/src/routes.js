@@ -4,6 +4,7 @@ const router  = express.Router();
 const queryController    = require('./controllers/queryController');
 const documentController = require('./controllers/documentController');
 const authController     = require('./controllers/authController');
+const analyticsController = require('./controllers/analyticsController');
 const uploadMiddleware   = require('./middleware/upload');
 const { requireApiKey, requireSession } = require('./middleware/auth');
 const settingsController = require('./controllers/settingsController');
@@ -554,3 +555,9 @@ router.get('/logs', requireSession, async (req, res) => {
     res.json({ logs: [], error: err.message });
   }
 });
+
+// ── Analytics (Session only) ─────────────────────────────────────────
+router.get('/analytics/overview', requireSession, analyticsController.getOverview);
+router.get('/analytics/tags', requireSession, analyticsController.getTags);
+router.get('/analytics/sessions', requireSession, analyticsController.getSessions);
+router.get('/analytics/usage', requireSession, analyticsController.getUsage);

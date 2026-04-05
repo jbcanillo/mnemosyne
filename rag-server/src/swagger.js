@@ -79,6 +79,104 @@ const options = {
             embeddingModel:{ type: 'string' },
             tokenUsage:    { type: 'object', description: 'Token usage statistics' }
           }
+        },
+        AnalyticsOverview: {
+          type: 'object',
+          properties: {
+            totalQueries:    { type: 'integer' },
+            totalDocuments:  { type: 'integer' },
+            totalChunks:     { type: 'integer' },
+            activeTags:      { type: 'integer' },
+            cacheHitRate:    { type: 'number' },
+            avgResponseTime: { type: 'number' },
+            currentModel:    { type: 'string' },
+            systemHealth:    { type: 'object' }
+          }
+        },
+        AnalyticsTags: {
+          type: 'object',
+          properties: {
+            tags: { type: 'array', items: { type: 'object', properties: {
+              name: { type: 'string' },
+              documentCount: { type: 'integer' },
+              chunkCount: { type: 'integer' },
+              coOccurrences: { type: 'object' }
+            } } },
+            relationships: { type: 'array', items: { type: 'object', properties: {
+              source: { type: 'string' },
+              target: { type: 'string' },
+              value: { type: 'integer' }
+            } } }
+          }
+        },
+        AnalyticsSessions: {
+          type: 'object',
+          properties: {
+            totalSessions:       { type: 'integer' },
+            totalMessages:       { type: 'integer' },
+            avgMessagesPerSession: { type: 'number' },
+            sessionsByDay: { type: 'array', items: { type: 'object', properties: {
+              date: { type: 'string' },
+              count: { type: 'integer' }
+            } } }
+          }
+        },
+        AnalyticsUsage: {
+          type: 'object',
+          properties: {
+            tokenUsage:   { type: 'object' },
+            cacheStats:   { type: 'object' },
+            queueMetrics: { type: 'object' }
+          }
+        },
+        AnalyticsOverview: {
+          type: 'object',
+          properties: {
+            totalQueries:    { type: 'integer' },
+            totalDocuments:  { type: 'integer' },
+            totalChunks:     { type: 'integer' },
+            activeTags:      { type: 'integer' },
+            cacheHitRate:    { type: 'number' },
+            avgResponseTime: { type: 'number' },
+            currentModel:    { type: 'string' },
+            systemHealth:    { type: 'object' }
+          }
+        },
+        AnalyticsTags: {
+          type: 'object',
+          properties: {
+            tags: { type: 'array', items: { type: 'object', properties: {
+              name: { type: 'string' },
+              documentCount: { type: 'integer' },
+              chunkCount: { type: 'integer' },
+              coOccurrences: { type: 'object' }
+            } } },
+            relationships: { type: 'array', items: { type: 'object', properties: {
+              source: { type: 'string' },
+              target: { type: 'string' },
+              value: { type: 'integer' }
+            } } }
+          }
+        },
+        AnalyticsSessions: {
+          type: 'object',
+          properties: {
+            totalSessions:       { type: 'integer' },
+            totalMessages:       { type: 'integer' },
+            avgMessagesPerSession: { type: 'number' },
+            sessionsByDay: { type: 'array', items: { type: 'object', properties: {
+              date: { type: 'string' },
+              count: { type: 'integer' }
+            } } }
+          }
+        },
+        AnalyticsUsage: {
+          type: 'object',
+          properties: {
+            tokenUsage:   { type: 'object' },
+            cacheStats:   { type: 'object' },
+            queueMetrics: { type: 'object' }
+          }
         }
       }
     },
@@ -91,7 +189,8 @@ const options = {
       { name: 'Settings',  description: 'Runtime configuration (API keys, model, tuning)' },
       { name: 'System',    description: 'Health, diagnostics, cache, vector store' },
       { name: 'Sessions',  description: 'Conversation sessions management' },
-      { name: 'Backups',   description: 'Backup and restore operations' }
+      { name: 'Backups',   description: 'Backup and restore operations' },
+      { name: 'Analytics', description: 'Analytics and metrics dashboard' }
     ],
     paths: {
       // ── AUTH ──────────────────────────────────────────────────────────
@@ -537,6 +636,74 @@ const options = {
           responses: {
             200: { description: 'Backup deleted' },
             404: { description: 'Backup not found' }
+          }
+        }
+      },
+
+      // ── ANALYTICS ─────────────────────────────────────────────────────
+      '/analytics/overview': {
+        get: {
+          tags: ['Analytics'], summary: 'Get analytics overview with system metrics',
+          responses: {
+            200: { description: 'Analytics overview', content: { 'application/json': { schema: { '$ref': '#/components/schemas/AnalyticsOverview' } } } }
+          }
+        }
+      },
+      '/analytics/tags': {
+        get: {
+          tags: ['Analytics'], summary: 'Get tag statistics and co-occurrence relationships',
+          responses: {
+            200: { description: 'Tag analytics', content: { 'application/json': { schema: { '$ref': '#/components/schemas/AnalyticsTags' } } } }
+          }
+        }
+      },
+      '/analytics/sessions': {
+        get: {
+          tags: ['Analytics'], summary: 'Get session analytics with daily breakdown',
+          responses: {
+            200: { description: 'Session analytics', content: { 'application/json': { schema: { '$ref': '#/components/schemas/AnalyticsSessions' } } } }
+          }
+        }
+      },
+      '/analytics/usage': {
+        get: {
+          tags: ['Analytics'], summary: 'Get token usage, cache stats, and queue metrics',
+          responses: {
+            200: { description: 'Usage analytics', content: { 'application/json': { schema: { '$ref': '#/components/schemas/AnalyticsUsage' } } } }
+          }
+        }
+      },
+
+      // ── ANALYTICS ─────────────────────────────────────────────────────
+      '/analytics/overview': {
+        get: {
+          tags: ['Analytics'], summary: 'Get analytics overview with system metrics',
+          responses: {
+            200: { description: 'Analytics overview', content: { 'application/json': { schema: { '$ref': '#/components/schemas/AnalyticsOverview' } } } }
+          }
+        }
+      },
+      '/analytics/tags': {
+        get: {
+          tags: ['Analytics'], summary: 'Get tag statistics and co-occurrence relationships',
+          responses: {
+            200: { description: 'Tag analytics', content: { 'application/json': { schema: { '$ref': '#/components/schemas/AnalyticsTags' } } } }
+          }
+        }
+      },
+      '/analytics/sessions': {
+        get: {
+          tags: ['Analytics'], summary: 'Get session analytics with daily breakdown',
+          responses: {
+            200: { description: 'Session analytics', content: { 'application/json': { schema: { '$ref': '#/components/schemas/AnalyticsSessions' } } } }
+          }
+        }
+      },
+      '/analytics/usage': {
+        get: {
+          tags: ['Analytics'], summary: 'Get token usage, cache stats, and queue metrics',
+          responses: {
+            200: { description: 'Usage analytics', content: { 'application/json': { schema: { '$ref': '#/components/schemas/AnalyticsUsage' } } } }
           }
         }
       }
