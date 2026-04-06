@@ -40,6 +40,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
   const [editingTitleValue, setEditingTitleValue] = useState('');
   const [showMetaSidebar, setShowMetaSidebar] = useState(false);
   const [selectedMetaMsg, setSelectedMetaMsg] = useState(null);
+  const [filterDate, setFilterDate] = useState(() => new Date().toISOString().split('T')[0]);
   const bottomRef = useRef(null);
   const sessionsLoadedRef = useRef(false);
 
@@ -541,26 +542,45 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
               </button>
             </div>
 
+            {/* Date filter */}
+            <div className="conv-filter-date">
+              <label className="conv-filter-label">Show by date:</label>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={e => setFilterDate(e.target.value)}
+                className="conv-date-input"
+                title="Filter conversations by date"
+              />
+            </div>
+
             <div className="conv-list">
               {sessionsLoading ? (
                 <div className="conv-empty">Loading...</div>
-              ) : sessions.length === 0 ? (
-                <div className="conv-empty">No conversations yet</div>
-              ) : (
-                sessions.map(session => (
-                  <div
-                    key={session.id}
-                    className={`conv-item ${currentSessionId === session.id ? 'active' : ''}`}
-                    onClick={() => switchSession(session.id)}
-                  >
-                    <div className="conv-item-text">
-                      <div className="conv-item-title">
-                        {session.title}
-                        {processingSessions[session.id] && (
-                          <span className="conv-processing-dot" title="Processing query...">
-                            <span /><span /><span />
-                          </span>
-                        )}
+              ) : (() => {
+                const filteredSessions = sessions.filter(s => {
+                  const sessionTs = s.lastMessageAt || s.createdAt;
+                  if (!sessionTs || typeof sessionTs !== 'string') return false;
+                  const sessionDate = String(sessionTs).split('T')[0];
+                  return sessionDate === filterDate;
+                });
+                return filteredSessions.length === 0 ? (
+                  <div className="conv-empty">No conversations on this date</div>
+                ) : (
+                  filteredSessions.map(session => (
+                    <div
+                      key={session.id}
+                      className={`conv-item ${currentSessionId === session.id ? 'active' : ''}`}
+                      onClick={() => switchSession(session.id)}
+                    >
+                      <div className="conv-item-text">
+                        <div className="conv-item-title">
+                          {session.title}
+                          {processingSessions[session.id] && (
+                            <span className="conv-processing-dot" title="Processing query...">
+                              <span /><span /><span />
+                            </span>
+                          )}
                       </div>
                        <div className="conv-item-meta">
                          <span>{session.messageCount || 0} msgs</span>
@@ -578,12 +598,13 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
                     >
                       <Trash2 size={12} />
                     </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
+</div>
+                 ))
+                );
+              })()}
+             </div>
+           </div>
+         )}
 
         {/* Clear All button at bottom of sidebar */}
         {showSessions && sessions.length > 0 && (
