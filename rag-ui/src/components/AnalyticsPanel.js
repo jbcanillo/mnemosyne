@@ -1,17 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import ForceGraph3D from "react-force-graph-3d";
 import {
-  AreaChart, Area,
-  LineChart, Line,
   BarChart, Bar,
+  LineChart, Line,
+  PieChart, Pie, Cell,
   XAxis, YAxis,
   CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from "recharts";
 import {
-  BarChart3, Clock, TrendingUp, Calendar,
-  AlertCircle, RefreshCw, Percent, Info, X,
-  Mouse, RotateCcw,
+  BarChart3, ScatterChart, PieChart as PieChart3, LineChart as LineChart3, Calendar,
+  AlertCircle, RefreshCw, Info, X, Mouse, MessageSquare,
 } from "lucide-react";
 import ragApi from "../api";
 import "./AnalyticsPanel.css";
@@ -28,7 +27,14 @@ const getTagColor = (tag) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
-// ── fallback graph data ───────────────────────────────────────────────────────
+// Pie chart uses a wider distinct palette so slices don't clash
+const PIE_COLORS = [
+  "#7c5cfc","#00d4ff","#fc5cf8","#ff6b9d","#ffb454",
+  "#3dffa0","#ff5370","#ffa500","#00bfff","#c084fc",
+  "#34d399","#f97316","#60a5fa","#f43f5e","#a78bfa",
+];
+
+// ── fallback sphere data ───────────────────────────────────────────────────────
 
 const FALLBACK_TAGS = [
   "Accounting","Finance","Legal","Marketing","Sales",
@@ -63,39 +69,55 @@ const buildFallbackGraph = () => {
 };
 
 // ── chart data builders ───────────────────────────────────────────────────────
-// These only run when real API data arrives, so values are stable per fetch.
 
-const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+// 1. Conversations per day — real: sessionsByDay[].count
+// Shows up to 31 days, filtered by month if selected
+const buildConversationsData = (sessionsByDay, monthFilter = 'all') => {
+  let filtered = sessionsByDay || [];
+  
+  // Apply month filter if not 'all'
+  if (monthFilter !== 'all') {
+    filtered = filtered.filter(day => {
+      const date = new Date(day.date + "T00:00:00");
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` === monthFilter;
+    });
+  }
+  
+  // Take up to 31 days (most recent)
+  const recent = filtered.slice(-31);
+  
+  return recent.map((day) => ({
+    day: new Date(day.date + "T00:00:00").toLocaleDateString("en-US", { 
+      month: "short", 
+      day: "numeric",
+      year: "numeric"
+    }),
+    conversations: day.count,
+    rawDate: day.date // Keep for potential further processing
+  }));
+};
 
-const buildUsageData = (sessionsByDay) =>
-  (sessionsByDay || []).slice(-7).map((day, i) => ({
-    day: DAYS[i] ?? new Date(day.date).toLocaleDateString("en", { weekday: "short" }),
-    // Use actual counts from the API — no randomness
-    queries:   day.count,
-    documents: day.documentCount ?? Math.floor(day.count * 0.3),
+// 2. Tag document distribution — real: tags[].documentCount (pie chart)
+const buildTagPieData = (tags) =>
+  (tags || [])
+    .filter((t) => (t.documentCount || 0) > 0)
+    .sort((a, b) => (b.documentCount || 0) - (a.documentCount || 0))
+    .slice(0, 12) // cap at 12 slices for legibility
+    .map((t) => ({ name: t.name, value: t.documentCount }));
+
+// 3. Avg messages per day — real: from messagesByDay with user/assistant breakdown
+const buildAvgMessagesData = (messagesByDay) =>
+  (messagesByDay || []).slice(-7).map((day) => ({
+    day: new Date(day.date + "T00:00:00").toLocaleDateString("en-US", { 
+      month: "short", 
+      day: "numeric",
+      year: "numeric"
+    }),
+    userMessages: day.userMessages || 0,
+    assistantMessages: day.assistantMessages || 0,
   }));
 
-// Response time: use API value directly with no jitter.
-// We show the single Avg + P95 values across the week rather than fake per-day variation.
-const buildResponseData = (sessionsByDay, avgRT) =>
-  (sessionsByDay || []).slice(-7).map((day, i) => ({
-    day: DAYS[i] ?? new Date(day.date).toLocaleDateString("en", { weekday: "short" }),
-    // Use per-day avg if the API provides it, otherwise fall back to the global avg
-    avgResponse: day.avgResponseTime ?? avgRT ?? 0,
-    p95: day.p95ResponseTime ?? (avgRT ? Math.round(avgRT * 1.6) : 0),
-  }));
-
-// Cache hit rate: use actual per-day value from API if available.
-// No random jitter — data is stable across refreshes.
-const buildCacheData = (sessionsByDay, overallRate) =>
-  (sessionsByDay || []).slice(-7).map((day, i) => ({
-    day: DAYS[i] ?? new Date(day.date).toLocaleDateString("en", { weekday: "short" }),
-    cacheHitRate: day.cacheHitRate != null
-      ? Math.round(day.cacheHitRate * 100)
-      : Math.round((overallRate || 0) * 100),  // fall back to global, no jitter
-  }));
-
-// ── chart tooltip ─────────────────────────────────────────────────────────────
+// ── shared tooltip ────────────────────────────────────────────────────────────
 
 const ChartTooltip = ({ active, payload, label, unit = "" }) => {
   if (!active || !payload?.length) return null;
@@ -105,10 +127,10 @@ const ChartTooltip = ({ active, payload, label, unit = "" }) => {
       borderRadius:10, padding:"10px 14px", fontSize:12,
       color:"var(--text)", boxShadow:"0 8px 24px rgba(0,0,0,0.35)",
     }}>
-      <div style={{ fontWeight:700, marginBottom:6, color:"var(--text2)" }}>{label}</div>
+      {label && <div style={{ fontWeight:700, marginBottom:6, color:"var(--text2)" }}>{label}</div>}
       {payload.map((p) => (
-        <div key={p.dataKey} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
-          <span style={{ width:8, height:8, borderRadius:"50%", background:p.color, display:"inline-block" }} />
+        <div key={p.dataKey ?? p.name} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
+          <span style={{ width:8, height:8, borderRadius:"50%", background:p.color ?? p.fill, display:"inline-block" }} />
           <span style={{ color:"var(--text3)" }}>{p.name}:</span>
           <span style={{ fontWeight:600 }}>{p.value}{unit}</span>
         </div>
@@ -117,7 +139,22 @@ const ChartTooltip = ({ active, payload, label, unit = "" }) => {
   );
 };
 
-// ── keyboard/mouse controls overlay ──────────────────────────────────────────
+// Custom pie label — only show name+% for slices large enough
+const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }) => {
+  if (percent < 0.05) return null;
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} textAnchor="middle" dominantBaseline="central"
+      style={{ fontSize:10, fill:"#fff", fontWeight:600, pointerEvents:"none" }}>
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+};
+
+// ── controls / info overlays ──────────────────────────────────────────────────
 
 const ControlsOverlay = () => (
   <div className="graph-controls-overlay">
@@ -134,8 +171,6 @@ const ControlsOverlay = () => (
   </div>
 );
 
-// ── info popover ──────────────────────────────────────────────────────────────
-
 const InfoPopover = ({ nodeCount, linkCount, onClose }) => (
   <div className="info-popover">
     <button className="info-popover-close" onClick={onClose}><X size={12} /></button>
@@ -145,62 +180,45 @@ const InfoPopover = ({ nodeCount, linkCount, onClose }) => (
   </div>
 );
 
-// ── shared card header ────────────────────────────────────────────────────────
-
-const CardHeader = ({ icon: Icon, title }) => (
-  <div className="card-header">
-    <h3><Icon size={15} /> {title}</h3>
-  </div>
-);
-
 // ── component ─────────────────────────────────────────────────────────────────
 
 export default function AnalyticsPanel() {
   const graphRef   = useRef();
   const wrapperRef = useRef();
 
-  const [tagData,      setTagData]      = useState(() => buildFallbackGraph());
-  const [usageData,    setUsageData]    = useState([]);
-  const [responseData, setResponseData] = useState([]);
-  const [cacheData,    setCacheData]    = useState([]);
-  const [dims,         setDims]         = useState({ width: 0, height: 0 });
+   const [tagData,          setTagData]          = useState(() => buildFallbackGraph());
+   const [conversationsData,setConversationsData] = useState([]);
+   const [tagPieData,       setTagPieData]        = useState([]);
+   const [avgMsgsData,      setAvgMsgsData]       = useState([]);
+   const [sessionsByDayRaw, setSessionsByDayRaw] = useState([]);
+   const [messagesByDay,    setMessagesByDay]     = useState([]);
+   const [selectedMonth,    setSelectedMonth]     = useState('all');
+   const [dims,             setDims]              = useState({ width: 0, height: 0 });
 
   const [error,       setError]       = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [refreshing,  setRefreshing]  = useState(false);
   const [showInfo,    setShowInfo]    = useState(false);
 
-  // Axis label colour — read from CSS vars so it adapts to light/dark mode
-  const [axisColor, setAxisColor] = useState("var(--text)");
+  // Theme-adaptive colours
+  const [axisColor,   setAxisColor]   = useState("var(--text)");
+  const [gridLine,    setGridLine]    = useState("rgba(0,0,0,0.08)");
+  const [accentColor, setAccentColor] = useState("#7c5cfc");
 
   useEffect(() => {
     const update = () => {
       const s = getComputedStyle(document.documentElement);
-      const t = s.getPropertyValue("--text").trim();
-      setAxisColor(t || "#111");
+      setAxisColor(s.getPropertyValue("--text").trim() || "#111");
+      setGridLine(s.getPropertyValue("--border").trim() || "rgba(0,0,0,0.08)");
+      setAccentColor(s.getPropertyValue("--accent").trim() || "#7c5cfc");
     };
     update();
-    // Re-run if the theme class changes on <html>
-    const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class","data-theme"] });
-    return () => observer.disconnect();
+    const obs = new MutationObserver(update);
+    obs.observe(document.documentElement, { attributes:true, attributeFilter:["class","data-theme"] });
+    return () => obs.disconnect();
   }, []);
 
-  // Grid/border colour
-  const [gridLine, setGridLine] = useState("rgba(0,0,0,0.08)");
-  useEffect(() => {
-    const s = getComputedStyle(document.documentElement);
-    setGridLine(s.getPropertyValue("--border").trim() || "rgba(0,0,0,0.08)");
-  }, []);
-
-  // Accent colour
-  const [accentColor, setAccentColor] = useState("#7c5cfc");
-  useEffect(() => {
-    const s = getComputedStyle(document.documentElement);
-    setAccentColor(s.getPropertyValue("--accent").trim() || "#7c5cfc");
-  }, []);
-
-  // Track wrapper size → ForceGraph3D
+  // Wrapper size → ForceGraph3D dimensions
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
@@ -214,66 +232,79 @@ export default function AnalyticsPanel() {
     return () => ro.disconnect();
   }, []);
 
-  // Reset camera on R key
+  // R key → reset camera
   useEffect(() => {
-    const handleKey = (e) => {
-      if (e.key === "r" || e.key === "R") {
-        if (!graphRef.current) return;
+    const handle = (e) => {
+      if ((e.key === "r" || e.key === "R") && graphRef.current) {
         try {
           const radius = Math.max(40, tagData.nodes.length * 2.5);
           graphRef.current.cameraPosition({ x:0, y:0, z: radius * 1.4 }, { x:0, y:0, z:0 }, 600);
         } catch (_) {}
       }
     };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
   }, [tagData.nodes.length]);
 
-  const fetchData = useCallback(async () => {
-    try {
-      setRefreshing(true);
-      setError(null);
-      const [overview, tags, sessions] = await Promise.all([
-        ragApi.getAnalyticsOverview(),
-        ragApi.getAnalyticsTags(),
-        ragApi.getAnalyticsSessions(),
-      ]);
+   const fetchData = useCallback(async () => {
+     try {
+       setRefreshing(true);
+       setError(null);
 
-      if (tags.tags?.length > 0) {
-        const nodes = tags.tags.map((tag) => ({
-          id: tag.name, name: tag.name,
-          size: Math.max(4, Math.sqrt(tag.chunkCount) / 1.5),
-          chunks: tag.chunkCount,
-          color: getTagColor(tag.name),
-        }));
-        const links = (tags.relationships || []).map((rel) => ({
-          source: rel.source, target: rel.target,
-          value: rel.value, color: "rgba(124,92,252,0.55)",
-        }));
-        setTagData({ nodes, links });
-      }
+       const [tags, sessions] = await Promise.all([
+         ragApi.getAnalyticsTags(),
+         ragApi.getAnalyticsSessions(),
+       ]);
 
-      const days    = sessions.sessionsByDay || [];
-      const avgRT   = overview.avgResponseTime || 0;
-      const hitRate = overview.cacheHitRate    || 0;
+       // Sphere
+       if (tags.tags?.length > 0) {
+         const nodes = tags.tags.map((tag) => ({
+           id: tag.name, name: tag.name,
+           size: Math.max(4, Math.sqrt(tag.chunkCount) / 1.5),
+           chunks: tag.chunkCount,
+           color: getTagColor(tag.name),
+         }));
+         const links = (tags.relationships || []).map((rel) => ({
+           source: rel.source, target: rel.target,
+           value: rel.value, color: "rgba(124,92,252,0.55)",
+         }));
+         setTagData({ nodes, links });
+       }
 
-      // Stable data — no randomness injected here
-      setUsageData(buildUsageData(days));
-      setResponseData(buildResponseData(days, avgRT));
-      setCacheData(buildCacheData(days, hitRate));
-      setLastRefresh(new Date());
-    } catch (err) {
-      setError(err.message || "Failed to load analytics data");
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
+       // Chart 1 — conversations per day (real) - store raw data
+       const days = sessions.sessionsByDay || [];
+       setSessionsByDayRaw(days);
 
-  useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, 30000);
-    return () => clearInterval(id);
-  }, [fetchData]);
+       // Chart 2 — tag document pie (real)
+       setTagPieData(buildTagPieData(tags.tags || []));
+
+       // Chart 3 — avg messages per day (real breakdown)
+       const msgsByDay = sessions.messagesByDay || [];
+       setMessagesByDay(msgsByDay);
+
+       setLastRefresh(new Date());
+     } catch (err) {
+       setError(err.message || "Failed to load analytics data");
+     } finally {
+       setRefreshing(false);
+     }
+   }, []);
+
+   useEffect(() => {
+     fetchData();
+     const id = setInterval(fetchData, 30000);
+     return () => clearInterval(id);
+   }, [fetchData]);
+
+   // Recompute conversations data when raw data or month filter changes
+   useEffect(() => {
+     setConversationsData(buildConversationsData(sessionsByDayRaw, selectedMonth));
+   }, [sessionsByDayRaw, selectedMonth]);
+
+   // Recompute avg messages data when messagesByDay changes
+   useEffect(() => {
+     setAvgMsgsData(buildAvgMessagesData(messagesByDay));
+   }, [messagesByDay]);
 
   const handleEngineStop = useCallback(() => {
     if (!graphRef.current) return;
@@ -293,15 +324,44 @@ export default function AnalyticsPanel() {
     tickLine: { stroke: gridLine },
   };
 
+   const noData = (icon, msg) => (
+     <div className="no-data-message">{icon}<p>{msg}</p></div>
+   );
+
+   // Get unique months from data for filter dropdown
+   const getAvailableMonths = (days) => {
+     const months = new Set();
+     (days || []).forEach(day => {
+       const date = new Date(day.date + "T00:00:00");
+       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+       months.add(monthKey);
+     });
+     return Array.from(months).sort().reverse(); // Most recent first
+   };
+
+   const availableMonths = getAvailableMonths(sessionsByDayRaw);
+   const monthOptions = [
+     { value: 'all', label: 'All Time' },
+     ...availableMonths.map(m => {
+       const [year, month] = m.split('-');
+       const date = new Date(parseInt(year), parseInt(month) - 1);
+       return { 
+         value: m, 
+         label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+       };
+     })
+   ];
+
   return (
     <div className="analytics-panel">
-
-      {/* Header */}
+      {/* ── Page header ── */}
       <div className="analytics-header">
         <div className="analytics-controls">
           {lastRefresh && (
-            <span className="last-refresh">Updated {lastRefresh.toLocaleTimeString()}</span>
-          )}
+            <div className="key-status key-ok">
+              <span className="last-refresh">Updated {lastRefresh.toLocaleTimeString()}</span>
+            </div>
+         )}
           <button onClick={fetchData} className="btn btn-ghost btn-xs" disabled={refreshing}>
             <RefreshCw size={14} className={refreshing ? "spinning" : ""} /> Refresh
           </button>
@@ -314,16 +374,11 @@ export default function AnalyticsPanel() {
         </div>
       )}
 
-      {/* ── Knowledge Thoughtspace card ── */}
+      {/* ── Knowledge ─ */}
       <div className="tag-sphere-card">
         <div className="card-header">
-          <h3><BarChart3 size={15} /> Knowledge Thoughtspace</h3>
-          {/* Info icon — replaces subtitle text */}
-          <button
-            className="info-btn"
-            onClick={() => setShowInfo((v) => !v)}
-            aria-label="Show graph information"
-          >
+          <h3><ScatterChart size={15} /> Knowledge Thortspace</h3>
+          <button className="info-btn" onClick={() => setShowInfo(v => !v)} aria-label="Show info">
             <Info size={15} />
           </button>
           {showInfo && (
@@ -334,7 +389,6 @@ export default function AnalyticsPanel() {
             />
           )}
         </div>
-
         <div className="graph-wrapper" ref={wrapperRef}>
           {dims.width > 0 && (
             <ForceGraph3D
@@ -342,7 +396,10 @@ export default function AnalyticsPanel() {
               graphData={tagData}
               width={dims.width}
               height={dims.height}
-              nodeLabel={(node) => `<div style="font-weight:700;margin-bottom:2px">${node.name}</div><div style="opacity:.75;font-size:11px">${node.chunks} chunks</div>`}
+              nodeLabel={(node) =>
+                `<div style="font-weight:700;margin-bottom:2px">${node.name}</div>` +
+                `<div style="opacity:.75;font-size:11px">${node.chunks} chunks</div>`
+              }
               nodeVal="size"
               nodeColor="color"
               nodeResolution={32}
@@ -365,95 +422,128 @@ export default function AnalyticsPanel() {
       {/* ── Charts ── */}
       <div className="charts-grid">
 
-        {/* Daily Usage */}
-        <div className="chart-card wide">
-          <div className="card-header">
-            <h3><Calendar size={15} /> Daily Usage — Queries &amp; Documents</h3>
-          </div>
+        {/* 1. Conversations per day — bar chart */}
+         <div className="chart-card wide">
+           <div className="card-header">
+             <h3><BarChart3 size={15} /> Conversations per Day</h3>
+             {availableMonths.length > 0 && (
+               <select 
+                 className="month-filter"
+                 value={selectedMonth}
+                 onChange={(e) => setSelectedMonth(e.target.value)}
+               >
+                 {monthOptions.map(opt => (
+                   <option key={opt.value} value={opt.value}>{opt.label}</option>
+                 ))}
+               </select>
+             )}
+           </div>
           <div className="chart-body">
-            {usageData.length > 0 ? (
+            {conversationsData.length > 0 ? (
               <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={usageData} margin={{ top:8, right:16, left:0, bottom:0 }}>
-                  <defs>
-                    <linearGradient id="gQueries" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor={accentColor} stopOpacity={0.35} />
-                      <stop offset="95%" stopColor={accentColor} stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gDocs" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#00d4ff" stopOpacity={0.28} />
-                      <stop offset="95%" stopColor="#00d4ff" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                <BarChart data={conversationsData} margin={{ top:8, right:16, left:0, bottom:0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={gridLine} vertical={false} />
                   <XAxis dataKey="day" {...axisProps} />
-                  <YAxis {...axisProps} />
+                  <YAxis {...axisProps} allowDecimals={false} />
                   <Tooltip content={<ChartTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Area type="monotone" dataKey="queries"   name="Queries"   stroke={accentColor} fill="url(#gQueries)" strokeWidth={2} />
-                  <Area type="monotone" dataKey="documents" name="Documents" stroke="#00d4ff"    fill="url(#gDocs)"    strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="no-data-message">
-                <Calendar size={30} /><p>No session data yet.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Daily Avg Response Time */}
-        <div className="chart-card">
-          <div className="card-header">
-            <h3><Clock size={15} /> Daily Avg Response Time</h3>
-          </div>
-          <div className="chart-body">
-            {responseData.length > 0 && responseData.some((d) => d.avgResponse > 0) ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={responseData} margin={{ top:8, right:16, left:0, bottom:0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridLine} vertical={false} />
-                  <XAxis dataKey="day" {...axisProps} />
-                  <YAxis {...axisProps} unit="ms" />
-                  <Tooltip content={<ChartTooltip unit="ms" />} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="avgResponse" name="Avg (ms)" fill={accentColor} radius={[4,4,0,0]} />
-                  <Bar dataKey="p95"         name="P95 (ms)" fill="#00d4ff"    radius={[4,4,0,0]} opacity={0.7} />
+                  <Bar
+                    dataKey="conversations"
+                    name="Conversations"
+                    fill={accentColor}
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="no-data-message">
-                <Clock size={30} /><p>No response time data.</p>
-              </div>
-            )}
+            ) : noData(<Calendar size={30} />, "No session data yet.")}
           </div>
         </div>
 
-        {/* Cache Hit Rate */}
+                 {/* 2. Tag document distribution — pie chart */}
         <div className="chart-card">
           <div className="card-header">
-            <h3><Percent size={15} /> Cache Hit Rate per Session</h3>
+            <h3><PieChart3 size={15} /> Document Distribution by Tags</h3>
           </div>
           <div className="chart-body">
-            {cacheData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={cacheData} margin={{ top:8, right:16, left:0, bottom:0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridLine} vertical={false} />
-                  <XAxis dataKey="day" {...axisProps} />
-                  <YAxis {...axisProps} unit="%" domain={[0, 100]} />
-                  <Tooltip content={<ChartTooltip unit="%" />} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Line
-                    type="monotone" dataKey="cacheHitRate" name="Cache Hit %"
-                    stroke="#3dffa0" strokeWidth={2.5}
-                    dot={{ fill:"#3dffa0", r:4, strokeWidth:0 }}
-                    activeDot={{ r:6, strokeWidth:0 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="no-data-message">
-                <TrendingUp size={30} /><p>No cache data yet.</p>
-              </div>
-            )}
+            {tagPieData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={tagPieData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      dataKey="value"
+                      labelLine={false}
+                      label={renderPieLabel}
+                    >
+                      {tagPieData.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0];
+                        const total = tagPieData.reduce((s, t) => s + t.value, 0);
+                        return (
+                          <div style={{
+                            background:"var(--bg3)", border:"1px solid var(--border)",
+                            borderRadius:10, padding:"10px 14px", fontSize:12,
+                            color:"var(--text)", boxShadow:"0 8px 24px rgba(0,0,0,0.3)",
+                          }}>
+                            <div style={{ fontWeight:700, marginBottom:4, color:"var(--text2)" }}>{d.name}</div>
+                             <div style={{ color:"var(--text3)" }}>
+                               {d.value} documents &nbsp;·&nbsp; {((d.value / total) * 100).toFixed(1)}%
+                             </div>
+                          </div>
+                        );
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </>
+            ) : noData(<BarChart3 size={30} />, "Upload tagged documents to see this chart.")}
+          </div>
+        </div>
+
+        {/* 3. Avg Messages per Day — line chart with user/assistant breakdown */}
+        <div className="chart-card">
+          <div className="card-header">
+            <h3><LineChart3 size={15} /> Avg Messages per Day</h3>
+          </div>
+          <div className="chart-body">
+            {avgMsgsData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={avgMsgsData} margin={{ top:8, right:16, left:0, bottom:0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridLine} vertical={false} />
+                    <XAxis dataKey="day" {...axisProps} />
+                    <YAxis {...axisProps} allowDecimals={false} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="userMessages"
+                      name="User Messages"
+                      stroke="#7c5cfc"
+                      strokeWidth={2.5}
+                      dot={{ fill:"#7c5cfc", r:4, strokeWidth:0 }}
+                      activeDot={{ r:6, strokeWidth:0 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="assistantMessages"
+                      name="AI Responses"
+                      stroke="#3dffa0"
+                      strokeWidth={2.5}
+                      dot={{ fill:"#3dffa0", r:4, strokeWidth:0 }}
+                      activeDot={{ r:6, strokeWidth:0 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
+            ) : noData(<MessageSquare size={30} />, "No session data yet.")}
           </div>
         </div>
 

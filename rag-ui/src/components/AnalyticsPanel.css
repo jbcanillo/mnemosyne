@@ -84,9 +84,7 @@
   flex-shrink: 0;
 }
 
-/* ── Shared Card Header ──
-   Used by the sphere card AND all chart cards for visual consistency.
-─────────────────────────────────────────────────────── */
+/* ── Shared Card Header ── */
 .card-header {
   display: flex;
   align-items: center;
@@ -95,7 +93,7 @@
   background: var(--bg3);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  position: relative; /* for info popover positioning */
+  position: relative;
 }
 
 .card-header h3 {
@@ -108,6 +106,29 @@
   text-transform: uppercase;
   letter-spacing: 1.4px;
   margin: 0;
+}
+
+/* Month filter dropdown */
+.month-filter {
+  margin-left: auto;
+  padding: 4px 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.month-filter:hover {
+  border-color: var(--accent);
+}
+
+.month-filter:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124, 92, 252, 0.15);
 }
 
 /* ── Info icon button ── */
@@ -273,18 +294,69 @@
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  overflow: hidden;          /* so card-header flush against top */
+  overflow: hidden;
   box-sizing: border-box;
-  /* No hover border effect */
 }
 
 .chart-card.wide {
   grid-column: span 2;
 }
 
-/* Chart body — padding lives here, not on the card itself */
+/* Chart body — padding inside, not on the card */
 .chart-body {
   padding: 16px 20px 20px;
+}
+
+/* ── Chart note (disclaimer / data source) ── */
+.chart-note {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 10px;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* ── Pie legend ── */
+.pie-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 12px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.pie-legend::-webkit-scrollbar { width: 4px; }
+.pie-legend::-webkit-scrollbar-track { background: transparent; }
+.pie-legend::-webkit-scrollbar-thumb { background: rgba(124,92,252,0.25); border-radius: 2px; }
+
+.pie-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.pie-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pie-label {
+  flex: 1;
+  color: var(--text2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pie-val {
+  color: var(--text3);
+  font-size: 11px;
+  min-width: 36px;
+  text-align: right;
 }
 
 /* ── No Data Placeholder ── */

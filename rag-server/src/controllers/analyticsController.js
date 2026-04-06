@@ -92,23 +92,56 @@ exports.getSessions = async (req, res) => {
     const sessions = await sessionService.getSessions(userId);
     
     const sessionsByDay = {};
+    const messagesByDay = {}; // { date: { user: 0, assistant: 0, total: 0 } }
     let totalMessages = 0;
     
-    sessions.forEach(session => {
+    for (const session of sessions) {
       const date = new Date(session.created).toISOString().split('T')[0];
       sessionsByDay[date] = (sessionsByDay[date] || 0) + 1;
-      totalMessages += session.messageCount || 0;
-    });
+      
+      // Initialize day structure if not exists
+      if (!messagesByDay[date]) {
+        messagesByDay[date] = { user: 0, assistant: 0, total: 0 };
+      }
+      
+      // Fetch messages for this session to count by type
+      try {
+        const messages = await sessionService.getMessages(session.id);
+        messages.forEach(msg => {
+          const type = msg.type === 'assistant' ? 'assistant' : 
+                       msg.type === 'user' ? 'user' : 'other';
+          if (type === 'user' || type === 'assistant') {
+            messagesByDay[date][type]++;
+            messagesByDay[date].total++;
+          }
+        });
+        totalMessages += messages.length;
+      } catch (msgErr) {
+        logger.warn(`[Analytics] Failed to fetch messages for session ${session.id}:`, msgErr.message);
+        // Fallback: use messageCount from session if we can't fetch messages
+        totalMessages += session.messageCount || 0;
+      }
+    }
 
     const sessionsByDayArray = Object.entries(sessionsByDay)
       .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const messagesByDayArray = Object.entries(messagesByDay)
+      .map(([date, counts]) => ({
+        date,
+        userMessages: counts.user,
+        assistantMessages: counts.assistant,
+        totalMessages: counts.total
+      }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
     res.json({
       totalSessions: sessions.length,
       totalMessages,
       avgMessagesPerSession: sessions.length ? (totalMessages / sessions.length).toFixed(1) : 0,
-      sessionsByDay: sessionsByDayArray
+      sessionsByDay: sessionsByDayArray,
+      messagesByDay: messagesByDayArray
     });
   } catch (err) {
     logger.error('[Analytics] Sessions error:', err.message);
