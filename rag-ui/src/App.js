@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { User, LogOut, MessageSquare, BookOpen, Activity, Settings, Sun, Moon } from 'lucide-react';
+import { User, LogOut, MessageSquare, BookOpen, Activity, Settings, Sun, Moon, BarChart3 } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import QueryPanel from './components/QueryPanel';
 import DocumentsPanel from './components/DocumentsPanel';
+import AnalyticsPanel from './components/AnalyticsPanel';
 import StatusPanel from './components/StatusPanel';
 import SettingsPanel from './components/SettingsPanel';
 import { ragApi } from './api';
@@ -13,6 +14,7 @@ import './App.css';
 const TABS = [
   { id: 'query',     label: 'Query',         icon: <MessageSquare size={14} /> },
   { id: 'documents', label: 'Knowledge Base', icon: <BookOpen size={14} /> },
+  { id: 'analytics', label: 'Analytics',     icon: <BarChart3 size={14} /> },
   { id: 'status',    label: 'System Status',  icon: <Activity size={14} /> },
   { id: 'settings',  label: 'Settings',       icon: <Settings size={14} /> },
 ];
@@ -168,6 +170,9 @@ function AuthenticatedApp() {
         </div>
         <div style={{ display: activeTab === 'documents' ? 'contents' : 'none' }}>
           <DocumentsPanel onRefresh={checkHealth} />
+        </div>
+        <div style={{ display: activeTab === 'analytics' ? 'contents' : 'none' }}>
+          <AnalyticsPanel />
         </div>
         <div style={{ display: activeTab === 'status'    ? 'contents' : 'none' }}>
           <StatusPanel info={info} serverOnline={serverOnline} onRefresh={checkHealth} />
