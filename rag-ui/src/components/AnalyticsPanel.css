@@ -7,7 +7,7 @@
   overflow-y: auto;
 }
 
-/* ── Header ── */
+/* ── Page Header ── */
 .analytics-header {
   display: flex;
   align-items: center;
@@ -84,25 +84,18 @@
   flex-shrink: 0;
 }
 
-/* ── Tag Sphere Card ── */
-.tag-sphere-card {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  height: 560px;
-  flex-shrink: 0;
-  /* overflow visible so the WebGL canvas isn't clipped by the card border */
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
+/* ── Shared Card Header ──
+   Used by the sphere card AND all chart cards for visual consistency.
+─────────────────────────────────────────────────────── */
 .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 14px 20px;
   background: var(--bg3);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  position: relative; /* for info popover positioning */
 }
 
 .card-header h3 {
@@ -114,32 +107,157 @@
   color: var(--text2);
   text-transform: uppercase;
   letter-spacing: 1.4px;
-  margin: 0 0 4px 0;
-}
-
-.card-subtitle {
-  font-size: 12px;
-  color: var(--text3);
   margin: 0;
 }
 
-/* ── Graph Wrapper ──
-   Transparent background so the card's own bg shows through.
-   The canvas rendered by ForceGraph3D also uses backgroundColor="rgba(0,0,0,0)"
-   so the two match perfectly.
-─────────────────────────────────────────────────────── */
+/* ── Info icon button ── */
+.info-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.info-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(124, 92, 252, 0.08);
+}
+
+/* ── Info popover ── */
+.info-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 16px;
+  z-index: 50;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 14px 16px;
+  max-width: 300px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.55;
+}
+
+.info-popover p {
+  margin: 0 0 8px 0;
+}
+
+.info-popover p:last-child {
+  margin: 0;
+  color: var(--text3);
+  font-size: 11px;
+}
+
+.info-popover-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.info-popover-close:hover {
+  color: var(--text);
+}
+
+/* ── Tag Sphere Card ── */
+.tag-sphere-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  height: 560px;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ── Graph Wrapper ── */
 .graph-wrapper {
   flex: 1;
   width: 100%;
   position: relative;
   overflow: hidden;
-  /* Transparent — no background color set here */
   background: transparent;
 }
 
 .graph-wrapper canvas {
   display: block;
   outline: none;
+}
+
+/* ── Navigation controls overlay ── */
+.graph-controls-overlay {
+  position: absolute;
+  bottom: 14px;
+  left: 16px;
+  z-index: 10;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 8px 12px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.graph-controls-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 6px;
+}
+
+.graph-controls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.75);
+}
+
+.graph-controls-list span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.graph-controls-list kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--mono, monospace);
+  color: rgba(255,255,255,0.9);
+  white-space: nowrap;
 }
 
 /* ── Charts Grid ── */
@@ -155,29 +273,18 @@
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  padding: 20px;
-  transition: border-color 0.2s ease;
+  overflow: hidden;          /* so card-header flush against top */
   box-sizing: border-box;
-}
-
-.chart-card:hover {
-  border-color: var(--border3, rgba(255,255,255,0.12));
+  /* No hover border effect */
 }
 
 .chart-card.wide {
   grid-column: span 2;
 }
 
-.chart-card h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text2);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin: 0 0 16px 0;
+/* Chart body — padding lives here, not on the card itself */
+.chart-body {
+  padding: 16px 20px 20px;
 }
 
 /* ── No Data Placeholder ── */
@@ -222,6 +329,7 @@
 @media (max-width: 768px) {
   .analytics-panel { padding: 16px; gap: 16px; }
   .tag-sphere-card { height: 420px; }
+  .graph-controls-overlay { display: none; }
 }
 
 @media (max-width: 480px) {
