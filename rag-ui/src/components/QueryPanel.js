@@ -103,17 +103,18 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history]);
 
-  async function loadSessions() {
-    try {
-      setSessionsLoading(true);
-      const r = await ragApi.getSessions();
-      // Ensure all sessions have createdAt timestamp
-      const sessionsWithDates = (r.sessions || []).map(s => ({
-        ...s,
-        createdAt: s.createdAt || s.created_at || new Date().toISOString(),
-        tags: Array.isArray(s.tags) ? s.tags : []
-      }));
-      setSessions(sessionsWithDates);
+   async function loadSessions() {
+     try {
+       setSessionsLoading(true);
+       const r = await ragApi.getSessions();
+       // Ensure all sessions have createdAt and lastMessageAt timestamps
+       const sessionsWithDates = (r.sessions || []).map(s => ({
+         ...s,
+         createdAt: s.createdAt || s.created_at || s.created || new Date().toISOString(),
+         lastMessageAt: s.lastMessageAt || s.modified || s.createdAt || s.created_at || s.created || new Date().toISOString(),
+         tags: Array.isArray(s.tags) ? s.tags : []
+       }));
+       setSessions(sessionsWithDates);
       
       // Restore session tags from server
       const tagsMap = {};
@@ -137,14 +138,21 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
     }
   }
 
-  // Update session message count when history changes
-  useEffect(() => {
-    if (currentSessionId && history.length > 0) {
-      setSessions(s => s.map(sess =>
-        sess.id === currentSessionId ? { ...sess, messageCount: history.length } : sess
-      ));
-    }
-  }, [history, currentSessionId]);
+   // Update session message count and last message time when history changes
+   useEffect(() => {
+     if (currentSessionId && history.length > 0) {
+       const lastMsg = history[history.length - 1];
+       setSessions(s => s.map(sess =>
+         sess.id === currentSessionId 
+           ? { 
+               ...sess, 
+               messageCount: history.length,
+               lastMessageAt: lastMsg.ts || lastMsg.timestamp || sess.lastMessageAt
+             } 
+           : sess
+       ));
+     }
+   }, [history, currentSessionId]);
 
   async function loadSessionMessages(sessionId) {
     try {
@@ -554,14 +562,14 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
                           </span>
                         )}
                       </div>
-                      <div className="conv-item-meta">
-                        <span>{session.messageCount || 0} msgs</span>
-                        {session.createdAt && (
-                          <span className="conv-item-date">
-                            {new Date(session.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        )}
-                      </div>
+                       <div className="conv-item-meta">
+                         <span>{session.messageCount || 0} msgs</span>
+                         {session.lastMessageAt && (
+                           <span className="conv-item-date">
+                             {new Date(session.lastMessageAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} {new Date(session.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                           </span>
+                         )}
+                       </div>
                     </div>
                     <button
                       className="btn-icon btn-danger btn-xs conv-delete"
@@ -782,9 +790,9 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
               </button>
             </div>
             <div className="meta-sidebar-content">
-              <div className="meta-item">
-                <strong>Timestamp:</strong> {fmtTime(selectedMetaMsg.ts)}
-              </div>
+               <div className="meta-item">
+                 <strong>Timestamp:</strong> {fmtDateTime(selectedMetaMsg.ts)}
+               </div>
               {selectedMetaMsg.fromCache && (
                 <div className="meta-item">
                   <strong>Status:</strong> <span className="cache-badge"><Zap size={10} /> Cached</span>
@@ -817,4 +825,12 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
 
 function fmtTime(date) {
   return date ? new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+}
+
+function fmtDateTime(date) {
+  if (!date) return '';
+  const d = new Date(date);
+  const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `${dateStr} ${timeStr}`;
 }

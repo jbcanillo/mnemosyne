@@ -33,7 +33,10 @@ const options = {
             topK:              { type: 'integer', example: 5 },
             chunkSize:         { type: 'integer', example: 500 },
             chunkOverlap:      { type: 'integer', example: 50 },
-            cacheTtl:          { type: 'integer', example: 3600 }
+            cacheTtl:          { type: 'integer', example: 3600 },
+            ocrEnabled:       { type: 'boolean', default: true, description: 'Enable OCR for scanned PDFs and images' },
+            ocrMinTextLength: { type: 'integer', default: 10, description: 'Minimum text length for OCR success' },
+            ocrLang:          { type: 'string', default: 'eng', description: 'OCR language code' }
           }
         },
         Document: {
@@ -41,10 +44,12 @@ const options = {
           properties: {
             id:         { type: 'string', description: 'Document UUID' },
             filename:   { type: 'string' },
-            fileType:   { type: 'string', description: 'File extension without dot' },
+            fileType:   { type: 'string', description: 'File extension without dot. Supports: pdf, docx, xlsx, xls, csv, md, txt, png, jpg, jpeg, gif, bmp, tiff, tif' },
             chunkCount: { type: 'integer' },
             uploadedAt: { type: 'string', format: 'date-time' },
-            tags:       { type: 'array', items: { type: 'string' }, description: 'Tags assigned to this document' }
+            tags:       { type: 'array', items: { type: 'string' }, description: 'Tags assigned to this document' },
+            ocrUsed:   { type: 'boolean', description: 'Whether OCR was used to extract text' },
+            ocrMethod: { type: 'string', enum: ['pdf-parse', 'tesseract-ocr', 'mammoth', 'xlsx', 'markdown', 'none'], description: 'Method used to extract text' }
           }
         },
         Session: {
@@ -53,7 +58,8 @@ const options = {
             id:           { type: 'string', description: 'Session UUID' },
             title:        { type: 'string' },
             messageCount: { type: 'integer' },
-            createdAt:    { type: 'string', format: 'date-time' }
+            createdAt:    { type: 'string', format: 'date-time', description: 'Session creation timestamp' },
+            lastMessageAt:{ type: 'string', format: 'date-time', description: 'Timestamp of the last message in the session' }
           }
         },
         Backup: {
@@ -296,7 +302,7 @@ const options = {
           requestBody: {
             required: true,
             content: { 'multipart/form-data': { schema: { type: 'object', required: ['file'], properties: {
-              file: { type: 'string', format: 'binary', description: 'PDF, DOCX, XLSX, CSV, MD, TXT (max 50 MB)' },
+              file: { type: 'string', format: 'binary', description: 'PDF, DOCX, XLSX, CSV, MD, TXT, PNG, JPG, JPEG, GIF, BMP, TIFF, TIF (max 50 MB). Images are processed with OCR.' },
               tags: { type: 'string', description: 'Comma-separated tags (e.g., "finance,hr,policy")' }
             } } } }
           },

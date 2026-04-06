@@ -220,7 +220,7 @@ exports.info = async (req, res) => {
       version: '1.0.0',
       models: {
         embedding: process.env.EMBED_MODEL   || 'nomic-embed-text',
-        llm:       process.env.OPENROUTER_MODEL || 'microsoft/phi-3-mini-128k-instruct:free',
+        llm:       process.env.OPENROUTER_MODEL || 'openrouter/free',
         provider:  'OpenRouter'
       },
       minRelevanceScore: MIN_RELEVANCE_SCORE,

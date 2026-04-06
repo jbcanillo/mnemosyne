@@ -1,6 +1,6 @@
 # Mnemosyne — RAG Knowledge Base
 
-A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with full authentication, live LLM switching, and a Viber chatbot integration. Answers questions grounded exclusively in your own uploaded documents.
+A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with full authentication, live LLM switching, and REST API for third-party chat integrations. Answers questions grounded exclusively in your own uploaded documents.
 
 ---
 
@@ -24,13 +24,13 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 │                │(vectors)│    │(cache+q)│                        │
 │                └─────────┘    └─────────┘                        │
 └──────────────────────────────────────────────────────────────────┘
-         ▲
-         │  HTTP  ·  X-API-Key header
-         │
+          ▲
+          │  HTTP  ·  X-API-Key header
+          │
 ┌────────┴──────────┐
-│  Chatbot.php      │ ◀─── Viber Webhook
-│  (CI PHP App)     │
-└───────────────────┘
+│  Third-party      │ ◀─── Any chat platform
+│  Chat App        │
+└──────────────────┘
 ```
 
 ### Component Stack
@@ -43,7 +43,6 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 | **Cache / Queue** | Redis + Bull | Query caching, async job queue |
 | **API Server** | Node.js + Express | REST API, auth, rate limiting |
 | **Admin UI** | React | Document management, query testing, live model switching |
-| **Chatbot** | PHP / CodeIgniter | Viber-facing bot |
 
 ---
 
@@ -51,7 +50,7 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 
 | Client | Method | Header |
 |--------|--------|--------|
-| Viber bot (`Chatbot.php`) | API Key | `X-API-Key: <RAG_API_KEY>` |
+| Third-party app (API Key) | API Key | `X-API-Key: <RAG_API_KEY>` |
 | React Admin UI | Session Token | `X-Session-Token: <token>` (auto-injected after login) |
 
 ### API Key — server-to-server
@@ -113,26 +112,42 @@ docker logs mnemosyne-ollama-init -f
 
 ### 4 — Upload documents
 
-Go to the **Knowledge Base** tab and upload PDFs, Excel files, Markdown, DOCX, CSV, or plain text. Each document is parsed, chunked, embedded, and indexed automatically. A live progress bar shows the exact stage.
+Go to the **Knowledge Base** tab and upload PDFs, Excel files, Markdown, DOCX, CSV, plain text, or images. Each document is parsed, chunked, embedded, and indexed automatically. A live progress bar shows the exact stage.
 
-### 5 — Configure the Viber bot
+#### OCR Support (Images & Scanned PDFs)
 
-Add to `application/config/constants.php`:
+Mnemosyne automatically extracts text from images and scanned PDFs using Tesseract OCR:
 
-```php
-define('RAG_SERVER_URL', 'http://localhost:3001');
-define('RAG_API_KEY',    'your_64_char_hex_key');  // same key as .env
+- **Supported image formats**: PNG, JPG, JPEG, GIF, BMP, TIFF, TIF
+- **PDF processing**: If direct text extraction yields <10 characters, OCR runs automatically as fallback
+- **Language**: English (default), configurable via `OCR_LANG`
+
+OCR is enabled by default. To disable or configure:
+
+```env
+# In rag-server/.env
+OCR_ENABLED=false           # Set to false to disable OCR
+OCR_MIN_TEXT_LENGTH=10   # Minimum text for successful extraction
+OCR_LANG=eng             # Tesseract language code
 ```
 
-Verify the connection at:
-```
-GET http://your-ci-host/chatbot/rag_status
+### 5 — Connect a third-party chat integration
+
+Use the API key authentication for third-party integrations:
+
+```env
+# In your chat integration
+RAG_SERVER_URL=http://localhost:3001
+RAG_API_KEY=your_64_char_hex_key  # same key as .env
 ```
 
-Expected:
-```json
-{ "rag_server": "online", "api_key_valid": true, "api_key_set": true }
+Verify the connection:
+```bash
+curl http://localhost:3001/api/info \
+  -H "X-API-Key: your_api_key"
 ```
+
+Expected response includes `ollama`, `chromadb`, `redis` status.
 
 ---
 
@@ -193,7 +208,7 @@ curl http://localhost:3001/api/auth/verify \
 ### Query
 
 ```bash
-# Sync query — API Key (Viber bot)
+# Sync query — API Key
 curl -X POST http://localhost:3001/api/query \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your_api_key" \
@@ -217,13 +232,23 @@ curl "http://localhost:3001/api/query/debug?q=your+question" \
 ### Documents
 
 ```bash
-# Upload
+# Upload (supports PDF, DOCX, XLSX, CSV, MD, TXT, PNG, JPG, JPEG, GIF, BMP, TIFF, TIF)
 curl -X POST http://localhost:3001/api/documents/upload \
   -H "X-Session-Token: your_token" \
   -F "file=@/path/to/document.pdf"
 
-# List
+# Upload with tags
+curl -X POST http://localhost:3001/api/documents/upload \
+  -H "X-Session-Token: your_token" \
+  -F "file=@/path/to/document.pdf" \
+  -F "tags=finance,quarterly"
+
+# List (optionally filter by tags)
 curl http://localhost:3001/api/documents \
+  -H "X-Session-Token: your_token"
+
+# List documents with specific tags
+curl "http://localhost:3001/api/documents?tags=finance,quarterly" \
   -H "X-Session-Token: your_token"
 
 # Check ingest job progress
@@ -233,6 +258,12 @@ curl http://localhost:3001/api/documents/ingest-status/<jobId> \
 # Delete
 curl -X DELETE http://localhost:3001/api/documents/<id> \
   -H "X-Session-Token: your_token"
+
+# Update document tags
+curl -X PUT http://localhost:3001/api/documents/<id>/tags \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Token: your_token" \
+  -d '{"tags":["new","tags"]}'
 ```
 
 ### Models
@@ -247,6 +278,44 @@ curl -X POST http://localhost:3001/api/models/switch \
   -H "Content-Type: application/json" \
   -H "X-Session-Token: your_token" \
   -d '{"modelId":"meta-llama/llama-3.1-8b-instruct:free"}'
+```
+
+### Analytics
+
+```bash
+# Overview — system metrics at a glance
+curl http://localhost:3001/api/analytics/overview \
+  -H "X-Session-Token: your_token"
+
+# Tag statistics and co-occurrences
+curl http://localhost:3001/api/analytics/tags \
+  -H "X-Session-Token: your_token"
+
+# Session analytics with daily breakdown
+curl http://localhost:3001/api/analytics/sessions \
+  -H "X-Session-Token: your_token"
+
+# Token usage, cache stats, and queue metrics
+curl http://localhost:3001/api/analytics/usage \
+  -H "X-Session-Token: your_token"
+```
+
+### Sessions
+
+```bash
+# List all conversation sessions
+curl http://localhost:3001/api/sessions \
+  -H "X-Session-Token: your_token"
+
+# Get session messages
+curl http://localhost:3001/api/sessions/<sessionId> \
+  -H "X-Session-Token: your_token"
+
+# Add message to session
+curl -X POST http://localhost:3001/api/sessions/<sessionId>/messages \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Token: your_token" \
+  -d '{"type":"assistant","text":"Hello! How can I help?","fromCache":false}'
 ```
 
 ### Admin
@@ -286,6 +355,9 @@ curl -X POST http://localhost:3001/api/vector-store/reset \
 | `CACHE_TTL` | `3600` | Query cache TTL in seconds |
 | `CORS_ORIGIN` | `*` | Restrict in production |
 | `APP_URL` | `http://localhost:3000` | Application start URL |
+| `OCR_ENABLED` | `true` | Enable OCR for scanned PDFs and images |
+| `OCR_MIN_TEXT_LENGTH` | `10` | Minimum text length for OCR success |
+| `OCR_LANG` | `eng` | Tesseract OCR language code |
 
 ---
 

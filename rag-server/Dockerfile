@@ -1,7 +1,18 @@
 FROM node:20-alpine
 
-# Only install what's actually needed for pdf-parse and xlsx
-RUN apk add --no-cache python3 make g++ bash
+# Install system dependencies for OCR and PDF processing
+# tesseract-ocr: OCR engine
+# tesseract-ocr-data-eng: English language data for Tesseract
+# poppler-utils: PDF to image conversion (pdftoppm)
+# python3 make g++: build tools for native Node modules
+RUN apk add --no-cache \
+    tesseract-ocr \
+    tesseract-ocr-data-eng \
+    poppler-utils \
+    python3 \
+    make \
+    g++ \
+    bash
 
 WORKDIR /app
 

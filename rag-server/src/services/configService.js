@@ -15,6 +15,7 @@ const DEFAULTS = {
   chunkSize:         parseInt(process.env.CHUNK_SIZE || '500'),
   chunkOverlap:      parseInt(process.env.CHUNK_OVERLAP || '50'),
   cacheTtl:          parseInt(process.env.CACHE_TTL || '3600'),
+  maxTokens:         parseInt(process.env.MAX_TOKENS || '8000')
 };
 
 // In-memory token usage tracking (resets on server restart)
