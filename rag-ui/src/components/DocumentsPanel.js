@@ -5,7 +5,7 @@ import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, 
 import { ragApi } from '../api';
 import './DocumentsPanel.css';
 
-const SUPPORTED = ['.pdf', '.xlsx', '.xls', '.csv', '.md', '.txt', '.docx'];
+const SUPPORTED = ['.pdf', '.xlsx', '.xls', '.csv', '.md', '.txt', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif'];
 const POLL_INTERVAL = 3000;   // poll every 3s
 const POLL_TIMEOUT  = 5 * 60 * 1000; // give up after 5 min
 
@@ -276,6 +276,12 @@ export default function DocumentsPanel({ onRefresh }) {
       'text/markdown': ['.md'],
       'text/plain': ['.txt'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      // Images for OCR
+      'image/png': ['.png'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/gif': ['.gif'],
+      'image/bmp': ['.bmp'],
+      'image/tiff': ['.tiff', '.tif'],
     },
     maxSize: 50 * 1024 * 1024
   });

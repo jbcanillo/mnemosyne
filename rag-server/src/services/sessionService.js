@@ -47,6 +47,7 @@ class SessionService {
         userId,
         title: title || 'New Conversation',
         created: new Date().toISOString(),
+        lastMessageAt: new Date().toISOString(),
         tags: [],
         messages: [],
         messageCount: 0
@@ -140,14 +141,15 @@ class SessionService {
       await this.redis.rpush(`session:${sessionId}:messages`, JSON.stringify(msg));
       await this.redis.expire(`session:${sessionId}:messages`, SESSION_TTL);
 
-      // Update session metadata
-      const session = await this.redis.get(`session:${sessionId}`);
-      if (session) {
-        const parsed = JSON.parse(session);
-        parsed.messageCount = (parsed.messageCount || 0) + 1;
-        parsed.modified = new Date().toISOString();
-        await this.redis.setex(`session:${sessionId}`, SESSION_TTL, JSON.stringify(parsed));
-      }
+       // Update session metadata
+       const session = await this.redis.get(`session:${sessionId}`);
+       if (session) {
+         const parsed = JSON.parse(session);
+         parsed.messageCount = (parsed.messageCount || 0) + 1;
+         parsed.lastMessageAt = msg.ts;
+         parsed.modified = new Date().toISOString();
+         await this.redis.setex(`session:${sessionId}`, SESSION_TTL, JSON.stringify(parsed));
+       }
 
       return msg;
     } catch (err) {

@@ -27,11 +27,23 @@ const fileFilter = (req, file, cb) => {
     'text/markdown',
     'text/plain',
     'application/octet-stream', // some .md files
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    // Images for OCR
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/gif',
+    'image/bmp',
+    'image/tiff',
+    'image/tif'
   ];
 
   const ext = path.extname(file.originalname).toLowerCase();
-  const allowedExts = ['.pdf', '.xlsx', '.xls', '.csv', '.md', '.markdown', '.txt', '.docx'];
+  const allowedExts = [
+    '.pdf', '.xlsx', '.xls', '.csv', '.md', '.markdown', '.txt', '.docx',
+    // Images for OCR
+    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif'
+  ];
 
   if (allowedExts.includes(ext)) {
     cb(null, true);

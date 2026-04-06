@@ -40,6 +40,7 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
   const [editingTitleValue, setEditingTitleValue] = useState('');
   const [showMetaSidebar, setShowMetaSidebar] = useState(false);
   const [selectedMetaMsg, setSelectedMetaMsg] = useState(null);
+  const [filterDate, setFilterDate] = useState(() => new Date().toISOString().split('T')[0]);
   const bottomRef = useRef(null);
   const sessionsLoadedRef = useRef(false);
 
@@ -103,17 +104,18 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history]);
 
-  async function loadSessions() {
-    try {
-      setSessionsLoading(true);
-      const r = await ragApi.getSessions();
-      // Ensure all sessions have createdAt timestamp
-      const sessionsWithDates = (r.sessions || []).map(s => ({
-        ...s,
-        createdAt: s.createdAt || s.created_at || new Date().toISOString(),
-        tags: Array.isArray(s.tags) ? s.tags : []
-      }));
-      setSessions(sessionsWithDates);
+   async function loadSessions() {
+     try {
+       setSessionsLoading(true);
+       const r = await ragApi.getSessions();
+       // Ensure all sessions have createdAt and lastMessageAt timestamps
+       const sessionsWithDates = (r.sessions || []).map(s => ({
+         ...s,
+         createdAt: s.createdAt || s.created_at || s.created || new Date().toISOString(),
+         lastMessageAt: s.lastMessageAt || s.modified || s.createdAt || s.created_at || s.created || new Date().toISOString(),
+         tags: Array.isArray(s.tags) ? s.tags : []
+       }));
+       setSessions(sessionsWithDates);
       
       // Restore session tags from server
       const tagsMap = {};
@@ -137,14 +139,21 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
     }
   }
 
-  // Update session message count when history changes
-  useEffect(() => {
-    if (currentSessionId && history.length > 0) {
-      setSessions(s => s.map(sess =>
-        sess.id === currentSessionId ? { ...sess, messageCount: history.length } : sess
-      ));
-    }
-  }, [history, currentSessionId]);
+   // Update session message count and last message time when history changes
+   useEffect(() => {
+     if (currentSessionId && history.length > 0) {
+       const lastMsg = history[history.length - 1];
+       setSessions(s => s.map(sess =>
+         sess.id === currentSessionId 
+           ? { 
+               ...sess, 
+               messageCount: history.length,
+               lastMessageAt: lastMsg.ts || lastMsg.timestamp || sess.lastMessageAt
+             } 
+           : sess
+       ));
+     }
+   }, [history, currentSessionId]);
 
   async function loadSessionMessages(sessionId) {
     try {
@@ -533,35 +542,54 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
               </button>
             </div>
 
+            {/* Date filter */}
+            <div className="conv-filter-date">
+              <label className="conv-filter-label">Show by date:</label>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={e => setFilterDate(e.target.value)}
+                className="conv-date-input"
+                title="Filter conversations by date"
+              />
+            </div>
+
             <div className="conv-list">
               {sessionsLoading ? (
                 <div className="conv-empty">Loading...</div>
-              ) : sessions.length === 0 ? (
-                <div className="conv-empty">No conversations yet</div>
-              ) : (
-                sessions.map(session => (
-                  <div
-                    key={session.id}
-                    className={`conv-item ${currentSessionId === session.id ? 'active' : ''}`}
-                    onClick={() => switchSession(session.id)}
-                  >
-                    <div className="conv-item-text">
-                      <div className="conv-item-title">
-                        {session.title}
-                        {processingSessions[session.id] && (
-                          <span className="conv-processing-dot" title="Processing query...">
-                            <span /><span /><span />
-                          </span>
-                        )}
+              ) : (() => {
+                const filteredSessions = sessions.filter(s => {
+                  const sessionTs = s.lastMessageAt || s.createdAt;
+                  if (!sessionTs || typeof sessionTs !== 'string') return false;
+                  const sessionDate = String(sessionTs).split('T')[0];
+                  return sessionDate === filterDate;
+                });
+                return filteredSessions.length === 0 ? (
+                  <div className="conv-empty">No conversations on this date</div>
+                ) : (
+                  filteredSessions.map(session => (
+                    <div
+                      key={session.id}
+                      className={`conv-item ${currentSessionId === session.id ? 'active' : ''}`}
+                      onClick={() => switchSession(session.id)}
+                    >
+                      <div className="conv-item-text">
+                        <div className="conv-item-title">
+                          {session.title}
+                          {processingSessions[session.id] && (
+                            <span className="conv-processing-dot" title="Processing query...">
+                              <span /><span /><span />
+                            </span>
+                          )}
                       </div>
-                      <div className="conv-item-meta">
-                        <span>{session.messageCount || 0} msgs</span>
-                        {session.createdAt && (
-                          <span className="conv-item-date">
-                            {new Date(session.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        )}
-                      </div>
+                       <div className="conv-item-meta">
+                         <span>{session.messageCount || 0} msgs</span>
+                         {session.lastMessageAt && (
+                           <span className="conv-item-date">
+                             {new Date(session.lastMessageAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} {new Date(session.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                           </span>
+                         )}
+                       </div>
                     </div>
                     <button
                       className="btn-icon btn-danger btn-xs conv-delete"
@@ -570,12 +598,13 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
                     >
                       <Trash2 size={12} />
                     </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
+</div>
+                 ))
+                );
+              })()}
+             </div>
+           </div>
+         )}
 
         {/* Clear All button at bottom of sidebar */}
         {showSessions && sessions.length > 0 && (
@@ -782,9 +811,9 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
               </button>
             </div>
             <div className="meta-sidebar-content">
-              <div className="meta-item">
-                <strong>Timestamp:</strong> {fmtTime(selectedMetaMsg.ts)}
-              </div>
+               <div className="meta-item">
+                 <strong>Timestamp:</strong> {fmtDateTime(selectedMetaMsg.ts)}
+               </div>
               {selectedMetaMsg.fromCache && (
                 <div className="meta-item">
                   <strong>Status:</strong> <span className="cache-badge"><Zap size={10} /> Cached</span>
@@ -817,4 +846,12 @@ export default function QueryPanel({ history, setHistory, onLoadingChange, onNew
 
 function fmtTime(date) {
   return date ? new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+}
+
+function fmtDateTime(date) {
+  if (!date) return '';
+  const d = new Date(date);
+  const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `${dateStr} ${timeStr}`;
 }

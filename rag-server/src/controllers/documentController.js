@@ -97,7 +97,7 @@ exports.upload = async (req, res) => {
 
   const { filename, path: filePath } = req.file;
   const ext = path.extname(filename).toLowerCase().replace('.', '');
-  const supportedTypes = ['pdf', 'xlsx', 'xls', 'csv', 'md', 'markdown', 'txt', 'docx'];
+  const supportedTypes = ['pdf', 'xlsx', 'xls', 'csv', 'md', 'markdown', 'txt', 'docx', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'tif'];
 
   if (!supportedTypes.includes(ext)) {
     fs.unlinkSync(filePath);

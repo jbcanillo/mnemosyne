@@ -3,10 +3,19 @@ const xlsx = require('xlsx');
 const mammoth = require('mammoth');
 const fs = require('fs');
 const path = require('path');
+const { exec } = require('child_process');
+const { createWorker } = require('tesseract.js');
 const { logger } = require('../utils/logger');
 
 const CHUNK_SIZE = parseInt(process.env.CHUNK_SIZE || '500');
 const CHUNK_OVERLAP = parseInt(process.env.CHUNK_OVERLAP || '50');
+
+// OCR Configuration
+const OCR_CONFIG = {
+  lang: process.env.OCR_LANG || 'eng',
+  minTextLength: parseInt(process.env.OCR_MIN_TEXT_LENGTH || '10'),
+  enableOcr: process.env.OCR_ENABLED !== 'false' // default true
+};
 
 class DocumentParser {
   /**
@@ -18,6 +27,14 @@ class DocumentParser {
     switch (ext) {
       case 'pdf':
         return this.parsePDF(filePath);
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'gif':
+      case 'bmp':
+      case 'tiff':
+      case 'tif':
+        return this.parseImage(filePath);
       case 'xlsx':
       case 'xls':
       case 'csv':
@@ -36,9 +53,139 @@ class DocumentParser {
   }
 
   async parsePDF(filePath) {
+    logger.info(`[PDF] Extracting text from ${filePath}`);
+    
+    // First try: direct text extraction
     const buffer = fs.readFileSync(filePath);
     const data = await pdfParse(buffer);
-    return data.text;
+    const text = data.text || '';
+    
+    logger.info(`[PDF] Direct extraction yielded ${text.length} characters`);
+    
+    // If we got sufficient text, return it
+    if (text.trim().length >= OCR_CONFIG.minTextLength) {
+      return text;
+    }
+    
+    logger.info(`[PDF] Insufficient text extracted, falling back to OCR`);
+    
+    // Second try: OCR the PDF
+    return await this.parsePDFWithOCR(filePath);
+  }
+  
+  async parsePDFWithOCR(filePath) {
+    logger.info(`[PDF-OCR] Starting OCR on PDF`);
+    
+    return new Promise((resolve, reject) => {
+      // Create a temporary directory for the images
+      const tmpDir = fs.mkdtempSync('/tmp/ocr-pdf-');
+      const baseName = path.basename(filePath, path.extname(filePath));
+      
+      try {
+        // Use pdftoppm to convert PDF to PNG images
+        // -r 300 sets DPI to 300 for better OCR accuracy
+        // Output format: ppm (easier to convert) or png directly if available
+        const cmd = `pdftoppm -r 300 -png "${filePath}" "${tmpDir}/${baseName}"`;
+        
+        exec(cmd, async (err, stdout, stderr) => {
+          if (err) {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+            logger.error(`[PDF-OCR] pdftoppm failed: ${err.message}`);
+            reject(new Error(`Failed to convert PDF to images: ${err.message}`));
+            return;
+          }
+          
+          // Find all generated PNG files
+          const files = fs.readdirSync(tmpDir).filter(f => f.endsWith('.png'));
+          logger.info(`[PDF-OCR] Converted PDF to ${files.length} images`);
+          
+          if (files.length === 0) {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+            reject(new Error('No pages could be converted from PDF for OCR'));
+            return;
+          }
+          
+          // Sort files by page number (pdftoppm names them base_name-0001.png, etc.)
+          files.sort((a, b) => {
+            const aNum = parseInt(a.match(/-(\d+)\.png$/)[1]);
+            const bNum = parseInt(b.match(/-(\d+)\.png$/)[1]);
+            return aNum - bNum;
+          });
+          
+          // Perform OCR on each image
+          const worker = await createWorker(OCR_CONFIG.lang);
+          
+          try {
+            let fullText = '';
+            for (let i = 0; i < files.length; i++) {
+              const imgPath = path.join(tmpDir, files[i]);
+              logger.info(`[PDF-OCR] Processing page ${i + 1}/${files.length}`);
+              
+              try {
+                const { data } = await worker.recognize(imgPath);
+                const pageText = data.text;
+                
+                if (pageText && pageText.trim()) {
+                  fullText += pageText + '\n\n';
+                }
+              } catch (ocrErr) {
+                logger.warn(`[PDF-OCR] Error on page ${i + 1}: ${ocrErr.message}`);
+                // Continue with next page
+              }
+            }
+            
+            await worker.terminate();
+            
+            // Cleanup temp directory
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+            
+            if (fullText.trim().length < OCR_CONFIG.minTextLength) {
+              throw new Error('OCR produced insufficient text content');
+            }
+            
+            logger.info(`[PDF-OCR] Successfully extracted ${fullText.length} characters`);
+            resolve(fullText);
+            
+          } catch (workerErr) {
+            await worker.terminate();
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+            throw workerErr;
+          }
+        });
+      } catch (outerErr) {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        reject(outerErr);
+      }
+    });
+  }
+
+  async parseImage(filePath) {
+    logger.info(`[Image] Performing OCR on ${filePath}`);
+    
+    if (!OCR_CONFIG.enableOcr) {
+      throw new Error('OCR is disabled. Cannot process image files.');
+    }
+    
+    const worker = await createWorker(OCR_CONFIG.lang);
+    
+    try {
+      const { data } = await worker.recognize(filePath);
+      const text = data.text;
+      
+      await worker.terminate();
+      
+      if (!text || text.trim().length < OCR_CONFIG.minTextLength) {
+        throw new Error('OCR produced insufficient text content from image');
+      }
+      
+      logger.info(`[Image] Extracted ${text.length} characters`);
+      return text;
+      
+    } catch (err) {
+      await worker.terminate();
+      logger.error(`[Image] OCR failed: ${err.message}`);
+      throw new Error(`OCR failed for image: ${err.message}`);
+    }
   }
 
   parseSpreadsheet(filePath) {

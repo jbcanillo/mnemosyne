@@ -23,6 +23,7 @@
   --text:     #eef0f8;
   --text2:    #8b90a8;
   --text3:    #40465c;
+  --calendar-icon-filter: invert(1);
   --danger:   #ff5370;
   --warn:     #ffb454;
   --success:  #3dffa0;
@@ -56,6 +57,7 @@
   --text:     #212529;
   --text2:    #6c757d;
   --text3:    #adb5bd;
+  --calendar-icon-filter: invert(0);
   --danger:   #dc3545;
   --warn:     #ffc107;
   --success:  #28a745;

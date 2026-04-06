@@ -167,8 +167,7 @@ Answer questions STRICTLY based on the provided context documents.
 RULES:
 1. Only use information from the context. Never invent or assume facts.
 2. If the answer is not in the context, say: "I don't have information about that in the knowledge base."
-3. Be concise and direct. For Viber: plain text only, no markdown, under 200 words.
-4. Cite the source document when referencing specific facts.`;
+3. Be concise and direct. For External Chat Apps: plain text only, no markdown, under 1500 words.`;
 
     const userPrompt =
 `Context documents:
@@ -187,8 +186,8 @@ Answer based ONLY on the context above:`;
           { role: 'system', content: systemPrompt },
           { role: 'user',   content: userPrompt   }
         ],
-        temperature: 0.1,
-        max_tokens:  512
+        temperature: 0.7,
+        max_tokens:  cfg().get('maxTokens') || 500
       });
 
       const answer = completion.choices?.[0]?.message?.content;

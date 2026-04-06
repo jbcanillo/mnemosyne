@@ -201,6 +201,47 @@
   opacity: 0.7;
 }
 
+.conv-filter-date {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conv-filter-label {
+  font-size: 11px;
+  color: var(--text2);
+  font-weight: 500;
+}
+
+.conv-date-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text);
+}
+
+.conv-date-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.conv-date-input::-webkit-calendar-picker-indicator {
+  filter: var(--calendar-icon-filter);
+}
+
+.conv-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  color: var(--text3);
+}
+
 /* ── Main chat area ── */
 .query-main {
   flex: 1;
