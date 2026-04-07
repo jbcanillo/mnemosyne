@@ -171,18 +171,7 @@ curl -X POST http://localhost:3001/api/models/switch \
   -H "X-Session-Token: your_token" \
   -d '{"modelId": "meta-llama/llama-3.1-8b-instruct:free"}'
 ```
-
-### Available free models (OpenRouter)
-
-| Model ID | Notes |
-|----------|-------|
-| `stepfun/step-3.5-flash:free` | **Default** — fast, free |
-| `microsoft/phi-3-mini-128k-instruct:free` | 128k context window |
-| `meta-llama/llama-3.1-8b-instruct:free` | Most capable free model |
-| `mistralai/mistral-7b-instruct:free` | Fast and balanced |
-| `google/gemma-2-9b-it:free` | Google, strong reasoning |
-| `qwen/qwen-2-7b-instruct:free` | Multilingual |
-
+### Via Environment Variable
 To make a switch permanent, update `OPENROUTER_MODEL` in `rag-server/.env` and restart the `mnemosyne-rag-server` container.
 
 ---
