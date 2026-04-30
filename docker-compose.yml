@@ -116,13 +116,33 @@ services:
         condition: service_healthy
       ollama:
         condition: service_healthy
-    env_file:
-      - ./.env
     environment:
       - NODE_ENV=production
+      - RAG_API_KEY=${RAG_API_KEY:-3142174e8a4e4621950640da963358afb8c9c8f0e1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin12345}
+      - SESSION_TTL_HOURS=${SESSION_TTL_HOURS:-8}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-stepfun/step-3.5-flash:free}
+      - APP_URL=${APP_URL:-http://localhost:3002}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3002}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
       - OLLAMA_HOST=http://ollama:11434
       - CHROMA_URL=http://chromadb:8000
+      - CHROMA_COLLECTION=${CHROMA_COLLECTION:-mnemosyne_knowledge}
       - REDIS_URL=redis://redis:6379
+      - CACHE_TTL=${CACHE_TTL:-3600}
+      - TOP_K=${TOP_K:-5}
+      - MIN_RELEVANCE_SCORE=${MIN_RELEVANCE_SCORE:-0.15}
+      - CHUNK_SIZE=${CHUNK_SIZE:-500}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-50}
+      - MAX_TOKEN=${MAX_TOKEN:-8000}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-60}
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-50}
+      - UPLOAD_DIR=${UPLOAD_DIR:-/tmp/rag-uploads}
+      - OCR_ENABLED=${OCR_ENABLED:-true}
+      - OCR_MIN_TEXT_LENGTH=${OCR_MIN_TEXT_LENGTH:-10}
+      - OCR_LANG=${OCR_LANG:-eng}
     volumes:
       - rag_uploads:/tmp/rag-uploads
       - rag_logs:/var/log/rag
@@ -174,3 +194,6 @@ networks:
   rag-net:
     driver: bridge
     name: mnemosyne-rag-network
+
+
+
