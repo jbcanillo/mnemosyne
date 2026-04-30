@@ -9,7 +9,7 @@
 #
 #  SETUP (one-time):
 #    1. Get a free OpenRouter API key at https://openrouter.ai
-#    2. cp rag-server/.env.example rag-server/.env
+#    2. cp .env.example .env
 #       Fill in: RAG_API_KEY, ADMIN_PASSWORD, OPENROUTER_API_KEY
 #    3. docker compose up -d
 #       Ollama will pull nomic-embed-text (~270 MB) on first boot.
@@ -117,7 +117,7 @@ services:
       ollama:
         condition: service_healthy
     env_file:
-      - ./rag-server/.env
+      - ./.env
     environment:
       - NODE_ENV=production
       - OLLAMA_HOST=http://ollama:11434
@@ -152,7 +152,7 @@ services:
       rag-server:
         condition: service_healthy
     ports:
-      - "3000:80"
+      - "3002:80"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost/"]
       interval: 30s

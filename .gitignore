@@ -1,5 +1,17 @@
-/rag-server/.env
+# Ignore the combined .env file at root
+.env
+
+# Server specific ignores
 /rag-server/node_modules/
 /rag-server/dist/
+/rag-server/build/
+/rag-server/package-lock.json
+
+# UI specific ignores
 /rag-ui/node_modules/
 /rag-ui/dist/
+/rag-ui/build/
+/rag-ui/package-lock.json
+
+.github/
+.kilo/
