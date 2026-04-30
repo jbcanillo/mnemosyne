@@ -55,7 +55,7 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 
 ### API Key — server-to-server
 - Static secret, minimum 32 characters
-- Set via `RAG_API_KEY` in `rag-server/.env`
+- Set via `RAG_API_KEY` in `.env`
 - Also set in CI PHP as a constant or environment variable
 - Grants access to `/api/query` and `/api/query/status/:jobId`
 
@@ -81,10 +81,10 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 ### 1 — Configure secrets
 
 ```bash
-cp rag-server/.env.example rag-server/.env
+cp .env.example .env
 ```
 
-Open `rag-server/.env` and fill in:
+Open `.env` and fill in:
 
 ```env
 # Generate: openssl rand -hex 32
@@ -125,7 +125,7 @@ Mnemosyne automatically extracts text from images and scanned PDFs using Tessera
 OCR is enabled by default. To disable or configure:
 
 ```env
-# In rag-server/.env
+# In .env
 OCR_ENABLED=false           # Set to false to disable OCR
 OCR_MIN_TEXT_LENGTH=10   # Minimum text for successful extraction
 OCR_LANG=eng             # Tesseract language code
@@ -172,7 +172,7 @@ curl -X POST http://localhost:3001/api/models/switch \
   -d '{"modelId": "meta-llama/llama-3.1-8b-instruct:free"}'
 ```
 ### Via Environment Variable
-To make a switch permanent, update `OPENROUTER_MODEL` in `rag-server/.env` and restart the `mnemosyne-rag-server` container.
+To make a switch permanent, update `OPENROUTER_MODEL` in `.env` and restart the `mnemosyne-rag-server` container.
 
 ---
 
@@ -395,7 +395,7 @@ Mnemosyne implements **intelligent, endpoint-specific rate limiting** to prevent
 
 ### Configuration
 
-Set authenticated user limit in `rag-server/.env`:
+Set authenticated user limit in `.env`:
 
 ```env
 # Default: 120 (allows 2 req/sec for auth users)
