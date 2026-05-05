@@ -119,7 +119,7 @@ function AuthenticatedApp() {
           </button>
           <div className="logo">
             <span className="logo-name">Mnemosyne</span>
-            <span className="logo-sub">RAG Knowledge Base</span>
+            <span className="logo-sub">RAG Knowledge Base Agent</span>
           </div>
         </div>
         <div className="header-right">

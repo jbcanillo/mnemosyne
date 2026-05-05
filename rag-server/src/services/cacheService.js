@@ -3,12 +3,14 @@ const NodeCache = require('node-cache');
 const crypto = require('crypto');
 const { logger } = require('../utils/logger');
 
-const CACHE_TTL = parseInt(process.env.CACHE_TTL || '3600'); // 1 hour
+const DEFAULT_CACHE_TTL = parseInt(process.env.CACHE_TTL || '3600'); // 1 hour
 
 class CacheService {
   constructor() {
     this.useRedis = false;
-    this.memCache = new NodeCache({ stdTTL: CACHE_TTL, checkperiod: 120 });
+    // Initialize TTL from config (will be set after config loads)
+    this.currentTtl = DEFAULT_CACHE_TTL;
+    this.memCache = new NodeCache({ stdTTL: this.currentTtl, checkperiod: 120 });
 
     // Try Redis
     try {
@@ -36,6 +38,27 @@ class CacheService {
     } catch (err) {
       logger.warn('Redis init failed, using in-memory cache');
     }
+
+    // Sync TTL from configService after it's loaded
+    try {
+      const cfg = require('./configService');
+      const savedTtl = cfg.get('cacheTtl');
+      if (savedTtl && typeof savedTtl === 'number') {
+        this.currentTtl = savedTtl;
+        this.memCache.setDefaultTTL(savedTtl);
+        logger.info(`[Cache] Initialized TTL from config: ${savedTtl}s`);
+      }
+    } catch (err) {
+      logger.warn('[Cache] Could not load initial TTL from config:', err.message);
+    }
+  }
+
+  // Update TTL from config (called when settings change)
+  updateTtl(ttl) {
+    this.currentTtl = ttl;
+    // Note: existing cache entries keep their original TTL.
+    // New entries will use the updated TTL.
+    logger.info(`[Cache] TTL updated to ${ttl}s`);
   }
 
   /**
@@ -73,7 +96,7 @@ class CacheService {
     }
   }
 
-  async set(key, value, ttl = CACHE_TTL) {
+  async set(key, value, ttl = this.currentTtl) {
     try {
       if (this.useRedis) {
         await this.redis.setex(key, ttl, JSON.stringify(value));
@@ -119,9 +142,9 @@ class CacheService {
   async stats() {
     if (this.useRedis) {
       const keys = await this.redis.keys('rag:query:*').catch(() => []);
-      return { backend: 'redis', entries: keys.length, ttl: CACHE_TTL };
+      return { backend: 'redis', entries: keys.length, ttl: this.currentTtl };
     }
-    return { backend: 'memory', entries: this.memCache.keys().length, ttl: CACHE_TTL };
+    return { backend: 'memory', entries: this.memCache.keys().length, ttl: this.currentTtl };
   }
 }
 

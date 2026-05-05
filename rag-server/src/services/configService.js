@@ -8,14 +8,17 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'settings.json');
 
 // Default values — used when no config file exists yet
 const DEFAULTS = {
-  openrouterApiKey:  '',
-  openrouterModel:   process.env.OPENROUTER_MODEL || 'stepfun/step-3.5-flash:free',
-  minRelevanceScore: parseFloat(process.env.MIN_RELEVANCE_SCORE || '0.15'),
-  topK:              parseInt(process.env.TOP_K || '5'),
-  chunkSize:         parseInt(process.env.CHUNK_SIZE || '500'),
-  chunkOverlap:      parseInt(process.env.CHUNK_OVERLAP || '50'),
-  cacheTtl:          parseInt(process.env.CACHE_TTL || '3600'),
-  maxTokens:         parseInt(process.env.MAX_TOKENS || '8000')
+  llmEngine:            '',           // '', 'openrouter', or 'local' — '' = auto-detect
+  systemPrompt:         '',           // Custom system prompt for LLM (empty = use built-in default)
+  openrouterApiKey:     '',
+  openrouterModel:      process.env.OPENROUTER_MODEL || 'stepfun/step-3.5-flash:free',
+  localLlmModel:        process.env.LOCAL_LLM_MODEL  || 'llama3.2',
+  minRelevanceScore:   parseFloat(process.env.MIN_RELEVANCE_SCORE || '0.15'),
+  topK:                 parseInt(process.env.TOP_K || '5'),
+  chunkSize:           parseInt(process.env.CHUNK_SIZE || '500'),
+  chunkOverlap:        parseInt(process.env.CHUNK_OVERLAP || '50'),
+  cacheTtl:            parseInt(process.env.CACHE_TTL || '3600'),
+  maxTokens:           parseInt(process.env.MAX_TOKENS || '8000')
 };
 
 // In-memory token usage tracking (resets on server restart)

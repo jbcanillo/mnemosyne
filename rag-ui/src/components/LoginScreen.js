@@ -66,7 +66,7 @@ export default function LoginScreen() {
             <img src="/logo.svg" alt="App Logo" className="logo-img" />
           </div>
           <div className="login-title">Mnemosyne</div>
-          <div className="login-subtitle">RAG Knowledge Base</div>
+          <div className="login-subtitle">RAG Knowledge Base Agent</div>
           
         </div>
 

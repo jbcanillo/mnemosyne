@@ -138,6 +138,7 @@ router.get('/usage', requireSession, (req, res) => {
   res.json({
     currentModel:  llm.currentModel,
     embeddingModel:'nomic-embed-text',
+    engine:        llm.getEngine(),
     tokenUsage:    cfg.getTokenUsage()
   });
 });
@@ -211,6 +212,32 @@ router.get('/healthcheck', eitherAuth, statusLimiter, async (req, res) => {
 router.get('/settings',          requireSession, settingsController.get);
 router.put('/settings',          requireSession, settingsController.update);
 router.post('/settings/test-key',requireSession, settingsController.testKey);
+
+// ── Local LLM Model Management ─────────────────────────────────────────
+router.post('/local-model/check', requireSession, async (req, res) => {
+  const { model } = req.body;
+  if (!model) return res.status(400).json({ error: 'Model name required' });
+  const llm = require('./services/llmService');
+  try {
+    const list = await llm.ollama.list();
+    const exists = list.models.some(m => m.name.includes(model));
+    res.json({ exists, models: list.models.map(m => m.name) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/local-model/pull', requireSession, async (req, res) => {
+  const { model } = req.body;
+  if (!model) return res.status(400).json({ error: 'Model name required' });
+  const llm = require('./services/llmService');
+  try {
+    await llm.ollama.pull({ model });
+    res.json({ message: `Model ${model} pulled successfully` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Live model switching (Session only) ───────────────────────────────
 router.get('/models', requireSession, async (req, res) => {

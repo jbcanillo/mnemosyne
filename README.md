@@ -1,4 +1,4 @@
-# Mnemosyne — RAG Knowledge Base
+# Mnemosyne — RAG Knowledge Base Agent
 
 A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with full authentication, live LLM switching, and REST API for third-party chat integrations. Answers questions grounded exclusively in your own uploaded documents.
 
@@ -6,6 +6,30 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 
 ## Architecture
 
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                   Docker Network (mnemosyne-rag-network)          │
+│                                                                   │
+│  ┌──────────────┐     ┌───────────────┐     ┌─────────────────┐ │
+│  │  React UI    │────▶│  RAG Server   │────▶│ OpenRouter API  │ │
+│  │  :3000       │     │  :3001        │     │ (LLM cloud)     │ │
+│  │  Login gate  │     │  API Key +    │     └─────────────────┘ │
+│  └──────────────┘     │  Session auth │     ┌─────────────────┐ │
+│                        └──────┬────────┘────▶│ Ollama :11434   │ │
+│                               │              │ (embeddings     │ │
+│                       ┌───────┴──────┐       │  + optional LLM)│ │
+│                ┌──────▼──┐    ┌──────▼──┐    └─────────────────┘ │
+│                │ChromaDB │    │  Redis  │                       │
+│                │(vectors)│    │(cache+q)│                       │
+│                └─────────┘    └─────────┘                       │
+└──────────────────────────────────────────────────────────────────┘
+          ▲
+          │  HTTP  ·  X-API-Key header
+          │
+ ┌────────┴──────────┐
+ │  Third-party      │ ◀─── Any chat platform
+ │  Chat App        │
+ └──────────────────┘
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                   Docker Network (mnemosyne-rag-network)          │
@@ -37,7 +61,7 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 
 | Component | Technology | Role |
 |-----------|-----------|------|
-| **LLM** | OpenRouter (cloud) | Response generation — free tier, no GPU needed |
+| **LLM (Generation)** | OpenRouter (cloud) *or* Ollama (local) | Response generation — free tier cloud models or local models via Ollama |
 | **Embeddings** | Ollama + nomic-embed-text | Local semantic indexing — ~270 MB, no API cost |
 | **Vector DB** | ChromaDB | Chunk storage and cosine similarity search |
 | **Cache / Queue** | Redis + Bull | Query caching, async job queue |
@@ -103,7 +127,7 @@ OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxx
 docker compose up -d
 
 # First boot: Ollama pulls nomic-embed-text (~270 MB)
-docker logs mnemosyne-ollama-init -f
+docker logs mnemosyne-ollama -f
 ```
 
 ### 3 — Open the Admin UI
@@ -155,8 +179,26 @@ Expected response includes `ollama`, `chromadb`, `redis` status.
 
 You can switch the active language model **at runtime without restarting** any container.
 
-### Via the Admin UI
-Go to **System Status** → **Language Model** section → click any model card. The active model switches instantly with a loading spinner. The change persists until the container restarts.
+### LLM Engine Selection
+
+Mnemosyne supports two LLM engines:
+
+- **OpenRouter** (cloud): Uses OpenRouter's API for generation. Set `OPENROUTER_API_KEY` in `.env` (free tier available, no credits needed).
+- **Local Ollama**: Runs LLMs locally in your Ollama container (e.g., llama3.2, mistral, qwen2.5). No API key needed.
+
+Choose the engine in the Settings tab (Model & RAG Settings → LLM Engine dropdown):
+- **Auto** (default): Uses OpenRouter if API key is present, otherwise Local Ollama
+- **openrouter**: Always use OpenRouter cloud API
+- **local**: Always use local Ollama models
+
+Set the default local model via `LOCAL_LLM_MODEL` in `.env` (default: `llama3.2`).
+
+Available local models can be pulled with `ollama pull <model>` inside the Ollama container.
+
+### Switching Models (OpenRouter)
+
+#### Via the Admin UI
+Go to **System Status** → **Language Model** → select from configured OpenRouter models.
 
 ### Via API
 
@@ -171,8 +213,10 @@ curl -X POST http://localhost:3001/api/models/switch \
   -H "X-Session-Token: your_token" \
   -d '{"modelId": "meta-llama/llama-3.1-8b-instruct:free"}'
 ```
-### Via Environment Variable
-To make a switch permanent, update `OPENROUTER_MODEL` in `.env` and restart the `mnemosyne-rag-server` container.
+### Via Environment Variable (OpenRouter)
+To make an OpenRouter model switch permanent, update `OPENROUTER_MODEL` in `.env` and restart the container.
+
+For local Ollama models, set `LOCAL_LLM_MODEL` in `.env` (e.g., `llama3.2`, `mistral`, `qwen2.5`) and optionally set `LLM_ENGINE=local` to force local mode.
 
 ---
 

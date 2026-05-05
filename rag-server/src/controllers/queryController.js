@@ -77,7 +77,7 @@ async function processRagQuery(query, options = {}, job = null) {
 
   logger.info(`[Query] Using ${relevantChunks.length} chunks (scores: ${relevantChunks.map(c => c.relevanceScore.toFixed(3)).join(', ')})`);
 
-  // 5. Generate response via OpenRouter
+  // 5. Generate response (via configured LLM engine)
   let answer;
   try {
     answer = await llmService.generateResponse(query, relevantChunks);
@@ -208,26 +208,29 @@ exports.clearCache = async (req, res) => {
   }
 };
 
-exports.info = async (req, res) => {
-  try {
-    const [vectorStats, cacheStats, queueMetrics] = await Promise.all([
-      vectorStore.stats().catch(() => ({ error: 'unavailable' })),
-      cacheService.stats(),
-      queueService.getMetrics().catch(() => ({ error: 'unavailable' }))
-    ]);
-    res.json({
-      service: 'Mnemosyne RAG Server',
-      version: '1.0.0',
-      models: {
-        embedding: process.env.EMBED_MODEL   || 'nomic-embed-text',
-        llm:       process.env.OPENROUTER_MODEL || 'openrouter/free',
-        provider:  'OpenRouter'
-      },
-      minRelevanceScore: MIN_RELEVANCE_SCORE,
-      vectorStore: vectorStats,
-      cache: cacheStats,
-      queue: queueMetrics
-    });
+  exports.info = async (req, res) => {
+    try {
+      const llmService = require('../services/llmService');
+      const [vectorStats, cacheStats, queueMetrics] = await Promise.all([
+        vectorStore.stats().catch(() => ({ error: 'unavailable' })),
+        cacheService.stats(),
+        queueService.getMetrics().catch(() => ({ error: 'unavailable' }))
+      ]);
+      const engine = llmService.getEngine();
+      const cfg = require('../services/configService').load();
+      res.json({
+        service: 'Mnemosyne RAG Server',
+        version: '1.0.0',
+        models: {
+          embedding: process.env.EMBED_MODEL || 'nomic-embed-text',
+          llm: engine === 'local' ? (cfg.localLlmModel || 'llama3.2') : (cfg.openrouterModel || 'stepfun/step-3.5-flash:free'),
+          provider: engine === 'local' ? 'Local Ollama' : 'OpenRouter'
+        },
+        minRelevanceScore: MIN_RELEVANCE_SCORE,
+        vectorStore: vectorStats,
+        cache: cacheStats,
+        queue: queueMetrics
+      });
   } catch (err) {
     res.status(500).json({ error: 'Failed to get server info' });
   }
