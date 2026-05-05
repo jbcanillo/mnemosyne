@@ -102,11 +102,13 @@ export const ragApi = {
   healthcheck:    () => api.get('/healthcheck'),
   getLogs:        (lines = 200) => api.get(`/logs?lines=${lines}`),
 
-  // Settings
-  getSettings:    () => api.get('/settings'),
-  updateSettings: (data) => api.put('/settings', data),
-  testApiKey:     () => api.post('/settings/test-key'),
-  debugQuery:     (q) => api.get(`/query/debug?q=${encodeURIComponent(q)}`),
+   // Settings
+   getSettings:    () => api.get('/settings'),
+   updateSettings: (data) => api.put('/settings', data),
+   testApiKey:     () => api.post('/settings/test-key'),
+   checkLocalModel: (data) => api.post('/local-model/check', data),
+   pullLocalModel: (data) => api.post('/local-model/pull', data),
+   debugQuery:     (q) => api.get(`/query/debug?q=${encodeURIComponent(q)}`),
   health:         () => axios.get(`${BASE_URL.replace('/api', '')}/health`).then(r => r.data),
 
   // ── Backup & Restore ───────────────────────────────────────────

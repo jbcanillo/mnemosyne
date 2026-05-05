@@ -2,25 +2,29 @@
 #  Mnemosyne RAG Stack
 #
 #  Architecture:
-#    Ollama (Docker)      → embeddings only (nomic-embed-text, ~270 MB)
-#    OpenRouter (cloud)   → LLM generation  (phi-3-mini free tier)
+#    Ollama (Docker)      → embeddings + optional local LLM (nomic-embed-text, ~270 MB)
+#    OpenRouter (cloud)   → LLM generation (phi-3-mini free tier) - optional
 #    ChromaDB (Docker)    → vector storage
 #    Redis (Docker)       → cache + job queue
 #
+#  LLM Engine (choose one via LLM_ENGINE env var or UI Settings):
+#    - 'openrouter'  = Use OpenRouter cloud API (requires OPENROUTER_API_KEY)
+#    - 'local'       = Use local Ollama LLM (e.g., llama3.2, mistral, qwen2.5)
+#    - '' (unset)     = Auto-detect: OpenRouter if key present, else Local
+#
 #  SETUP (one-time):
-#    1. Get a free OpenRouter API key at https://openrouter.ai
+#    1. Get a free OpenRouter API key at https://openrouter.ai (optional)
 #    2. cp .env.example .env
-#       Fill in: RAG_API_KEY, ADMIN_PASSWORD, OPENROUTER_API_KEY
+#       Fill in: RAG_API_KEY, ADMIN_PASSWORD, (OPENROUTER_API_KEY if using OpenRouter)
 #    3. docker compose up -d
 #       Ollama will pull nomic-embed-text (~270 MB) on first boot.
-#       Watch: docker logs mnemosyne-ollama-init -f
 # ═══════════════════════════════════════════════════════════════════════
 
 services:
 
-  # ── Ollama: Embeddings only ────────────────────────────────────────
+  # ── Ollama: Embeddings + optional local LLM ─────────────────────
   # Pinned to 0.3.12 — avoids the CUDA layer extraction bug on Windows.
-  # Only nomic-embed-text is pulled (~270 MB). No LLM model needed.
+  # Pulls nomic-embed-text for embeddings on first boot via entrypoint script.
   ollama:
     image: ollama/ollama:0.3.12
     container_name: mnemosyne-ollama
@@ -38,28 +42,36 @@ services:
       timeout: 10s
       retries: 10
       start_period: 20s
-    networks:
-      - rag-net
-
-  # ── Ollama bootstrap: pull embedding model on first boot ───────────
-  ollama-init:
-    image: curlimages/curl:latest
-    container_name: mnemosyne-ollama-init
-    restart: "no"
-    depends_on:
-      ollama:
-        condition: service_healthy
-    networks:
-      - rag-net
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        echo "Pulling nomic-embed-text (~270 MB)..."
-        curl -sf -X POST http://ollama:11434/api/pull \
-          -d '{"name":"nomic-embed-text"}' \
-          --no-buffer -m 300
-        echo ""
-        echo "Embedding model ready."
+        echo "Starting Ollama..."
+        ollama serve &
+        SERVER_PID=$$
+        # Wait for server to be ready
+        for i in $$(seq 1 30); do
+          if curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
+            echo "Ollama is ready."
+            break
+          fi
+          echo "Waiting for Ollama... ($$i/30)"
+          sleep 1
+        done
+        # Pull embedding model if not present
+        if ! curl -sf http://localhost:11434/api/tags | grep -q 'nomic-embed-text'; then
+          echo "Pulling nomic-embed-text (~270 MB)..."
+          curl -sf -X POST http://localhost:11434/api/pull \
+            -d '{"name":"nomic-embed-text"}' \
+            --no-buffer -m 300
+          echo ""
+          echo "Embedding model ready."
+        else
+          echo "nomic-embed-text already present."
+        fi
+        # Keep server running in foreground
+        wait $SERVER_PID
+    networks:
+      - rag-net
 
   # ── ChromaDB: Vector Database ─────────────────────────────────────
   chromadb:
@@ -124,6 +136,8 @@ services:
       - SESSION_TTL_HOURS=${SESSION_TTL_HOURS:-8}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-stepfun/step-3.5-flash:free}
+      - LOCAL_LLM_MODEL=${LOCAL_LLM_MODEL:-llama3.2}
+      - LLM_ENGINE=${LLM_ENGINE:-}
       - APP_URL=${APP_URL:-http://localhost:3002}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3002}
       - LOG_LEVEL=${LOG_LEVEL:-info}

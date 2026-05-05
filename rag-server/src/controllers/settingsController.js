@@ -1,4 +1,5 @@
 const configService = require('../services/configService');
+const cacheService  = require('../services/cacheService');
 const { logger }    = require('../utils/logger');
 
 /**
@@ -26,8 +27,11 @@ exports.update = async (req, res) => {
   }
 
   try {
-    const keyChanged   = 'openrouterApiKey'  in updates;
-    const modelChanged = 'openrouterModel'   in updates;
+    const keyChanged     = 'openrouterApiKey'  in updates;
+    const modelChanged   = 'openrouterModel'   in updates;
+    const engineChanged  = 'llmEngine'        in updates;
+    const localModelChanged = 'localLlmModel' in updates;
+    const cacheTtlChanged = 'cacheTtl'         in updates;
 
     // Strip empty string key — treat as "clear key" intention only when explicitly blank
     if (keyChanged && updates.openrouterApiKey === '') {
@@ -36,8 +40,15 @@ exports.update = async (req, res) => {
 
     configService.update(updates);
 
-    // Re-verify OpenRouter connection if key or model changed
-    if (keyChanged || modelChanged) {
+    // Update cache TTL if changed
+    if (cacheTtlChanged) {
+      const newTtl = updates.cacheTtl;
+      cacheService.updateTtl(newTtl);
+      logger.info(`[Settings] Cache TTL updated to ${newTtl}s`);
+    }
+
+    // Re-verify LLM connection if engine-related settings changed
+    if (keyChanged || modelChanged || engineChanged || localModelChanged) {
       const llm = require('../services/llmService');
       const ok  = await llm.reinitGeneration();
       logger.info(`[Settings] LLM re-init after settings change: ${ok ? 'ok' : 'failed'}`);

@@ -2,7 +2,7 @@ const { Ollama } = require('ollama');
 const OpenAI     = require('openai');
 const { logger } = require('../utils/logger');
 
-// ── Embedding config (env only — not runtime-changeable) ──────────────
+// ── Embedding & Local LLM config (env only) ──────────────────────────
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://ollama:11434';
 const EMBED_MODEL = process.env.EMBED_MODEL || 'nomic-embed-text';
 
@@ -16,12 +16,23 @@ function errMsg(err) {
   if (err.message) return err.message;
   if (err.error?.message) return err.error.message;
   if (err.cause?.message) return err.cause.message;
-  try { return JSON.stringify(err); } catch { return String(err); }
+  try { return JSON.stringify(err); } catch { return String(err); };
 }
 
 // Lazy-load configService to avoid circular deps at module init time
 function cfg() {
   return require('./configService');
+}
+
+// Determine which LLM engine is active
+function getLlmEngine() {
+  const c = cfg().load();
+  // Explicit selection
+  if (c.llmEngine === 'openrouter') return 'openrouter';
+  if (c.llmEngine === 'local')      return 'local';
+  // Auto-detect: prefer OpenRouter if key is set, otherwise local
+  if (c.openrouterApiKey)            return 'openrouter';
+  return 'local';
 }
 
 class LLMService {
@@ -47,6 +58,11 @@ class LLMService {
   }
 
   get currentModel() {
+    const engine = getLlmEngine();
+    if (engine === 'local') {
+      const c = cfg().load();
+      return c.localLlmModel || 'llama3.2';
+    }
     return cfg().get('openrouterModel');
   }
 
@@ -85,10 +101,44 @@ class LLMService {
   }
 
   async _initGeneration() {
+    const engine = getLlmEngine();
+
+    if (engine === 'local') {
+      const MAX = 12;
+      for (let i = 1; i <= MAX; i++) {
+        try {
+          logger.info(`[LLM] Connecting to local Ollama (attempt ${i}/${MAX})…`);
+          const list  = await this.ollama.list();
+          const names = list.models.map(m => m.name);
+          logger.info(`[LLM] Connected. Models: ${names.join(', ') || '(none)'}`);
+
+          const cfgObj = cfg().load();
+          const localModel = cfgObj.localLlmModel || 'llama3.2';
+
+          // Pull local LLM model if not present
+          if (!names.some(n => n.includes(localModel))) {
+            logger.warn(`[LLM] Local model "${localModel}" not found — pulling…`);
+            await this.ollama.pull({ model: localModel });
+            logger.info(`[LLM] Pull complete: ${localModel}`);
+          }
+
+          this.generationReady = true;
+          logger.info(`[LLM] Local Ollama ready ✓  model: ${localModel}`);
+          return;
+        } catch (err) {
+          logger.warn(`[LLM] Local Ollama not ready (${i}/${MAX}): ${errMsg(err)}`);
+          if (i < MAX) await new Promise(r => setTimeout(r, 5000));
+        }
+      }
+      logger.error('[LLM] Local Ollama failed. Check: docker logs mnemosyne-ollama');
+      this.generationReady = true;
+      return;
+    }
+
+    // OpenRouter path
     const apiKey = cfg().get('openrouterApiKey');
     if (!apiKey) {
-      logger.warn('[LLM] No OpenRouter API key configured — set it in the Settings tab');
-      // Mark ready so the server starts; queries will fail gracefully with a clear message
+      logger.warn('[LLM] No OpenRouter API key configured — set it in Settings tab');
       this.generationReady = true;
       return;
     }
@@ -104,23 +154,33 @@ class LLMService {
       logger.info(`[LLM] OpenRouter ready ✓  model: ${this.currentModel}`);
     } catch (err) {
       const msg = errMsg(err);
-      // 429 = rate limit → key works fine
       if (msg.includes('429') || msg.toLowerCase().includes('rate')) {
         logger.warn('[LLM] OpenRouter rate limited on ping — marking ready anyway');
         this.generationReady = true;
       } else {
         logger.error(`[LLM] OpenRouter key verification failed: ${msg}`);
-        // Still mark ready — let queries fail with a useful message
         this.generationReady = true;
       }
     }
-  }
+  }  // end _initGeneration
 
   // ── Re-initialise generation after key/model update in settings ──────
   async reinitGeneration() {
     this.generationReady = false;
     await this._initGeneration();
     return this.generationReady;
+  }
+
+  // ── Re-initialise embedding ──────────────────────────────────────────
+  async reinitEmbedding() {
+    this.embeddingReady = false;
+    await this._initEmbedding();
+    return this.embeddingReady;
+  }
+
+  // ── Get current LLM engine being used ───────────────────────────────
+  getEngine() {
+    return getLlmEngine();
   }
 
   // ── Embedding ─────────────────────────────────────────────────────────
@@ -149,6 +209,22 @@ class LLMService {
 
   // ── Generation ────────────────────────────────────────────────────────
   async generateResponse(query, context) {
+    const engine = getLlmEngine();
+    const cfgObj = cfg().load();
+    const systemPrompt = cfgObj.systemPrompt ||
+`You are Mnemosyne, an AI assistant for a RAG knowledge base system.
+Answer questions STRICTLY based on the provided context documents.
+
+RULES:
+1. Only use information from the context. Never invent or assume facts.
+2. If the answer is not in the context, say: "I don't have information about that in the knowledge base."
+3. Be concise and direct. For External Chat Apps: plain text only, no markdown, under 1500 words.`;
+
+    if (engine === 'local') {
+      return this._generateLocal(query, context, systemPrompt);
+    }
+
+    // OpenRouter path
     const apiKey = cfg().get('openrouterApiKey');
     if (!apiKey) {
       throw new Error('OpenRouter API key not configured. Go to the Settings tab to add your key.');
@@ -159,15 +235,6 @@ class LLMService {
     const contextText = context
       .map((c, i) => `[Source ${i + 1}: ${c.metadata?.filename || 'Document'}]\n${c.text}`)
       .join('\n\n---\n\n');
-
-    const systemPrompt =
-`You are Mnemosyne, an AI assistant for a RAG knowledge base system.
-Answer questions STRICTLY based on the provided context documents.
-
-RULES:
-1. Only use information from the context. Never invent or assume facts.
-2. If the answer is not in the context, say: "I don't have information about that in the knowledge base."
-3. Be concise and direct. For External Chat Apps: plain text only, no markdown, under 1500 words.`;
 
     const userPrompt =
 `Context documents:
@@ -193,11 +260,10 @@ Answer based ONLY on the context above:`;
       const answer = completion.choices?.[0]?.message?.content;
       if (!answer) throw new Error('OpenRouter returned an empty response');
 
-      // Track token usage in configService
       if (completion.usage) {
         cfg().trackTokens(completion.usage, model);
       }
-      logger.debug(`[LLM] Tokens: ${completion.usage?.total_tokens ?? '?'} · model: ${model}`);
+      logger.debug(`[LLM] Tokens: ${completion.usage?.total_tokens ?? '?'} · model: ${model} [OpenRouter]`);
       return answer;
 
     } catch (err) {
@@ -217,8 +283,80 @@ Answer based ONLY on the context above:`;
     }
   }
 
+  // ── Local Ollama LLM generation ──────────────────────────────────────
+  async _generateLocal(query, context, systemPrompt) {
+    const cfgObj = cfg().load();
+    const localModel = cfgObj.localLlmModel || 'llama3.2';
+    const maxTokens = cfg().get('maxTokens') || 500;
+
+    const contextText = context
+      .map((c, i) => `[Source ${i + 1}: ${c.metadata?.filename || 'Document'}]\n${c.text}`)
+      .join('\n\n---\n\n');
+
+    const userPrompt =
+`Context documents:
+${contextText}
+
+---
+
+Question: ${query}
+
+Answer based ONLY on the context above:`;
+
+    try {
+      logger.info(`[LLM] Generating with local model: ${localModel}`);
+
+      const response = await this.ollama.chat({
+        model: localModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userPrompt }
+        ],
+        options: {
+          temperature: 0.7,
+          num_predict: maxTokens
+        }
+      });
+
+      const answer = response?.message?.content?.trim();
+      if (!answer) throw new Error('Ollama returned an empty response');
+
+      if (response.eval_count) {
+        cfg().trackTokens({
+          prompt_tokens: response.prompt_eval_count || 0,
+          completion_tokens: response.eval_count || 0,
+          total_tokens: (response.prompt_eval_count || 0) + (response.eval_count || 0)
+        }, localModel);
+      }
+
+      logger.debug(`[LLM] Local generation complete · model: ${localModel}`);
+      return answer;
+
+    } catch (err) {
+      const msg = errMsg(err);
+      logger.error(`[LLM] Local generate() failed: ${msg}`);
+
+      if (msg.includes('not found') || msg.includes('pull') || msg.includes('404')) {
+        throw new Error(`Local model "${localModel}" not found on Ollama. Try: "ollama pull ${localModel}" in the Ollama container or select a different model in Settings.`);
+      }
+      if (msg.includes('connection') || msg.includes('ECONNREFUSED')) {
+        throw new Error('Cannot connect to Ollama. Check: docker logs mnemosyne-ollama');
+      }
+      throw new Error(`Local LLM generation failed: ${msg}`);
+    }
+  }
+
   // ── Live model switching ───────────────────────────────────────────────
   async switchModel(modelId) {
+    const engine = getLlmEngine();
+    
+    if (engine === 'local') {
+      const previous = this.currentModel;
+      cfg().update({ localLlmModel: modelId.trim() });
+      logger.info(`[LLM] Local model switched: ${previous} → ${modelId}`);
+      return { previous, current: modelId };
+    }
+
     if (!modelId || typeof modelId !== 'string' || !modelId.trim()) {
       throw new Error('Invalid model ID');
     }

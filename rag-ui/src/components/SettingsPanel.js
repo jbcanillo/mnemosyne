@@ -28,18 +28,26 @@ export default function SettingsPanel({ onRefresh }) {
   const [restoring, setRestoring] = useState(false);
   const [backups, setBackups] = useState([]);
 
+  // LLM Engine and local model state
+  const [llmEngine,  setLlmEngine]  = useState('');
+  const [localModel, setLocalModel] = useState('');
+  // FIX: added 'checking' status so Check and Download don't share 'downloading'
+  const [localModelStatus, setLocalModelStatus] = useState('unknown'); // 'available' | 'checking' | 'downloading' | 'not_found' | 'unknown'
+
   // Form state
   const [apiKey,   setApiKey]   = useState('');
   const [model,    setModel]    = useState('');
+  const [systemPrompt, setSystemPrompt] = useState('');
   const [minScore, setMinScore] = useState('');
   const [topK,     setTopK]     = useState('');
   const [cacheTtl, setCacheTtl] = useState('');
   const [chunkSize,setChunkSize]= useState('');
   const [chunkOvlp,setChunkOvlp]= useState('');
 
-  useEffect(() => { 
+  useEffect(() => {
     loadSettings();
     loadModels();
+    loadBackups();
   }, []);
 
   async function loadSettings() {
@@ -47,8 +55,15 @@ export default function SettingsPanel({ onRefresh }) {
     try {
       const s = await ragApi.getSettings();
       setSettings(s);
-      // Don't pre-fill the key — user must type it fresh to change it
-      // Note: will be overridden by loadModels() which loads the active model
+      setLlmEngine(s.llmEngine || '');
+      setLocalModel(s.localLlmModel || 'llama3.2');
+      setSystemPrompt(s.systemPrompt || `You are Mnemosyne, an AI assistant for a RAG knowledge base system.
+Answer questions STRICTLY based on the provided context documents.
+
+RULES:
+1. Only use information from the context. Never invent or assume facts.
+2. If the answer is not in the context, say: "I don't have information about that in the knowledge base."
+3. Be concise and direct. For External Chat Apps: plain text only, no markdown, under 1500 words.`);
       setMinScore(String(s.minRelevanceScore ?? '0.15'));
       setTopK(String(s.topK         ?? '5'));
       setCacheTtl(String(s.cacheTtl ?? '3600'));
@@ -65,7 +80,6 @@ export default function SettingsPanel({ onRefresh }) {
     try {
       const r = await ragApi.getModels();
       setModels(r.models || []);
-      // Find and track the active model (current system model)
       const active = (r.models || []).find(m => m.active);
       if (active) {
         setActiveModel(active);
@@ -76,8 +90,7 @@ export default function SettingsPanel({ onRefresh }) {
     }
   }
 
-  async function saveApiKey(e) {
-    e.preventDefault();
+  async function saveApiKey() {
     if (!apiKey.trim()) return;
     setSaving(true);
     setTestResult(null);
@@ -109,12 +122,43 @@ export default function SettingsPanel({ onRefresh }) {
     }
   }
 
-  async function saveModelSettings(e) {
-    e.preventDefault();
+  // FIX: uses 'checking' status instead of 'downloading' during check
+  async function checkLocalModel() {
+    setLocalModelStatus('checking');
+    try {
+      const r = await ragApi.checkLocalModel({ model: localModel });
+      if (r.exists) {
+        setLocalModelStatus('available');
+        toast.success(`Model "${localModel}" is available`);
+      } else {
+        setLocalModelStatus('not_found');
+      }
+    } catch (err) {
+      setLocalModelStatus('unknown');
+      toast.error('Check failed: ' + err.message);
+    }
+  }
+
+  async function pullLocalModel() {
+    setLocalModelStatus('downloading');
+    try {
+      await ragApi.pullLocalModel({ model: localModel });
+      setLocalModelStatus('available');
+      toast.success(`Model "${localModel}" downloaded successfully`);
+    } catch (err) {
+      setLocalModelStatus('not_found');
+      toast.error('Download failed: ' + err.message);
+    }
+  }
+
+  async function saveModelSettings() {
     setSaving(true);
     try {
       const r = await ragApi.updateSettings({
+        llmEngine:         llmEngine || undefined,
+        systemPrompt:      systemPrompt || undefined,
         openrouterModel:   model,
+        localLlmModel:     localModel,
         minRelevanceScore: parseFloat(minScore),
         topK:              parseInt(topK),
         cacheTtl:          parseInt(cacheTtl),
@@ -131,9 +175,8 @@ export default function SettingsPanel({ onRefresh }) {
     }
   }
 
-  // ── Model management ────────────────────────────────────────────────
-  async function handleAddModel(e) {
-    e.preventDefault();
+  // ── Model management ─────────────────────────────────────────────────
+  async function handleAddModel() {
     if (!newModelId.trim() || !newModelName.trim()) return;
     setAddingModel(true);
     try {
@@ -181,11 +224,7 @@ export default function SettingsPanel({ onRefresh }) {
     }
   }
 
-  // ── Data management ────────────────────────────────────────────────
-  useEffect(() => {
-    loadBackups();
-  }, []);
-
+  // ── Data management ──────────────────────────────────────────────────
   async function loadBackups() {
     try {
       const r = await ragApi.listBackups();
@@ -197,17 +236,29 @@ export default function SettingsPanel({ onRefresh }) {
 
   async function clearCache() {
     setClearing(true);
-    try { const r = await ragApi.clearCache(); toast.success(r.message || 'Cache cleared'); onRefresh?.(); }
-    catch (err) { toast.error('Failed: ' + err.message); }
-    finally { setClearing(false); }
+    try {
+      const r = await ragApi.clearCache();
+      toast.success(r.message || 'Cache cleared');
+      onRefresh?.();
+    } catch (err) {
+      toast.error('Failed: ' + err.message);
+    } finally {
+      setClearing(false);
+    }
   }
 
   async function resetVectorStore() {
     if (!window.confirm('Delete ALL indexed chunks? You will need to re-upload documents.')) return;
     setResetting(true);
-    try { await ragApi.resetVectorStore(); toast.success('Vector store reset'); onRefresh?.(); }
-    catch (err) { toast.error('Reset failed: ' + err.message); }
-    finally { setResetting(false); }
+    try {
+      await ragApi.resetVectorStore();
+      toast.success('Vector store reset');
+      onRefresh?.();
+    } catch (err) {
+      toast.error('Reset failed: ' + err.message);
+    } finally {
+      setResetting(false);
+    }
   }
 
   async function createBackup() {
@@ -254,93 +305,200 @@ export default function SettingsPanel({ onRefresh }) {
     </div>
   );
 
-  const keyIsSet = settings?.openrouterApiKey && settings.openrouterApiKey !== '';
+  const showLocalSection = llmEngine === 'local' || (!llmEngine && !settings?.openrouterApiKey);
+  const showOpenRouterSection = llmEngine === 'openrouter' || (llmEngine === '' && !!settings?.openrouterApiKey);
 
   return (
     <div className="settings-panel">
 
-      {/* ── OpenRouter API Key ── */}
-      <div className="sp-card">
-        <div className="sp-card-header">
-          <div className="sp-card-title">
-            <span className="sp-card-icon"><Key size={16} /></span>
-            OpenRouter API Key
-          </div>
-          <div className={`key-status ${keyIsSet ? 'key-ok' : 'key-missing'}`}>
-            {keyIsSet
-              ? <><span className="key-dot" /> Configured <span className="key-masked">{settings.openrouterApiKey}</span></>
-              : <><span className="key-dot" /> Not set</>
-            }
-          </div>
-        </div>
-
-        <div className="sp-card-body">
-          <p className="sp-desc">
-            Get a free key at <a href="https://openrouter.ai" target="_blank" rel="noreferrer" className="sp-link">openrouter.ai</a> → Keys → Create Key.
-            No credit card required for free-tier models.
-          </p>
-
-          <form className="key-form" onSubmit={saveApiKey}>
-            <div className="key-input-wrap">
-              <input
-                className="sp-input"
-                type={showKey ? 'text' : 'password'}
-                value={apiKey}
-                onChange={e => setApiKey(e.target.value)}
-                placeholder={keyIsSet ? 'Enter new key to replace current…' : 'sk-or-v1-…'}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <button type="button" className="key-toggle" onClick={() => setShowKey(v => !v)}>
-                {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
-            </div>
-            <div className="key-actions">
-              <button className="btn btn-primary" type="submit" disabled={saving || !apiKey.trim()}>
-                {saving ? <span className="spinner-xs" /> : <Save size={14} />} Save Key
-              </button>
-              {keyIsSet && (
-                <button className="btn btn-ghost" type="button" onClick={testKey} disabled={testing}>
-                  {testing ? <span className="spinner-xs" /> : <Network size={14} />} Test Connection
-                </button>
-              )}
-            </div>
-          </form>
-
-          {testResult && (
-            <div className={`test-result ${testResult.ok ? 'test-ok' : 'test-fail'}`}>
-              {testResult.ok
-                ? <><span className="tr-icon">✓</span> Connected to <strong>{testResult.model}</strong> — model replied: <em>"{testResult.reply}"</em> ({testResult.tokens} tokens used)</>
-                : <><span className="tr-icon">✗</span> {testResult.error}</>
-              }
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Model & RAG tuning ── */}
+      {/* ── Model & LLM Settings ── */}
       <div className="sp-card">
         <div className="sp-card-header">
           <div className="sp-card-title">
             <span className="sp-card-icon"><Bot size={16} /></span>
-            Model & RAG Settings
+            Model & LLM Settings
           </div>
         </div>
 
         <div className="sp-card-body">
-          <form className="settings-form" onSubmit={saveModelSettings}>
-            {/* Active model selector */}
+          {/* FIX: replaced <form onSubmit> with <div> + onClick on Save button */}
+          <div className="settings-form">
+
+            {/* LLM Engine selector */}
             <div className="form-group">
-              <label className="form-label">Active LLM Model</label>
-              <select className="sp-select" value={model} onChange={e => setModel(e.target.value)}>
-                <option value="">-- Select a model --</option>
-                {models.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {m.active ? '★ ' : ''}{m.name} ({m.id})
-                  </option>
-                ))}
+              <label className="form-label">LLM Engine</label>
+              <select
+                className="sp-select"
+                value={llmEngine}
+                onChange={e => setLlmEngine(e.target.value)}
+              >
+                <option value="">Auto (OpenRouter if key set, else Local)</option>
+                <option value="openrouter">OpenRouter (cloud)</option>
+                <option value="local">Local Ollama</option>
               </select>
-              <div className="form-hint">Select from configured models or add new ones below. ★ = Currently active model.</div>
+              <div className="form-hint">
+                {showLocalSection
+                  ? 'Using local Ollama models — no API key needed'
+                  : 'Uses OpenRouter cloud API — requires API key'}
+              </div>
+            </div>
+
+            {/* OpenRouter section */}
+            {showOpenRouterSection && (
+              <>
+                {/* OpenRouter API Key */}
+                <div className="form-group">
+                  <label className="form-label">OpenRouter API Key</label>
+                  <div className="key-input-wrap">
+                    <input
+                      className="sp-input"
+                      type={showKey ? 'text' : 'password'}
+                      value={apiKey}
+                      onChange={e => setApiKey(e.target.value)}
+                      placeholder={settings?.openrouterApiKey ? 'Enter new key to replace current…' : 'sk-or-v1-…'}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <button type="button" className="key-toggle" onClick={() => setShowKey(v => !v)}>
+                      {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  {apiKey.trim() && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={saveApiKey}
+                      disabled={saving}
+                      style={{ marginTop: '8px' }}
+                    >
+                      {saving ? <span className="spinner-xs" /> : <Key size={14} />} Save API Key
+                    </button>
+                  )}
+                  <div className="form-hint">
+                    Get a free key at <a href="https://openrouter.ai" target="_blank" rel="noreferrer" className="sp-link">openrouter.ai</a> → Keys → Create Key.
+                    No credit card required for free-tier models.
+                  </div>
+                </div>
+
+                {/* Test Key button */}
+                {settings?.openrouterApiKey && (
+                  <div className="form-group">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={testKey}
+                      disabled={testing}
+                    >
+                      {testing ? <span className="spinner-xs" /> : <Network size={14} />} Test Connection
+                    </button>
+                    {testResult && (
+                      <div className={`test-result ${testResult.ok ? 'test-ok' : 'test-fail'}`} style={{ marginTop: '8px' }}>
+                        {testResult.ok
+                          ? `✓ Connected — model replied: "${testResult.reply}"`
+                          : `✗ ${testResult.error}`}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Active model selector */}
+                <div className="form-group">
+                  <label className="form-label">Active OpenRouter Model</label>
+                  <select className="sp-select" value={model} onChange={e => setModel(e.target.value)}>
+                    <option value="">-- Select a model --</option>
+                    {models.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.active ? '★ ' : ''}{m.name} ({m.id})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="form-hint">Select from configured OpenRouter models. Add new ones below.</div>
+                </div>
+              </>
+            )}
+
+            {/* Local Ollama section */}
+            {showLocalSection && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Local Ollama Model</label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        className="sp-input"
+                        type="text"
+                        value={localModel}
+                        onChange={e => { setLocalModel(e.target.value); setLocalModelStatus('unknown'); }}
+                        placeholder="e.g., llama3.2, mistral, qwen2.5"
+                      />
+                    </div>
+                    {/* FIX: disabled during 'checking' OR 'downloading', label reflects correct state */}
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={checkLocalModel}
+                      disabled={localModelStatus === 'checking' || localModelStatus === 'downloading' || !localModel.trim()}
+                    >
+                      {localModelStatus === 'checking' ? <><span className="spinner-xs" /> Checking…</> : 'Check'}
+                    </button>
+                  </div>
+                  <div className="form-hint">
+                    Model name available in your Ollama instance. Default: llama3.2.
+                  </div>
+                </div>
+
+                {localModelStatus === 'not_found' && (
+                  <div className="form-group">
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--color-danger)' }}>Model not found in Ollama</span>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={pullLocalModel}
+                        disabled={!localModel.trim()}
+                      >
+                        <Download size={14} /> Download Model
+                      </button>
+                    </div>
+                    <div className="form-hint">
+                      The model will be pulled (~GB size) and stored in the Ollama container.
+                    </div>
+                  </div>
+                )}
+
+                {localModelStatus === 'downloading' && (
+                  <div className="form-group">
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span className="spinner-xs" />
+                      <span style={{ color: 'var(--color-warning)' }}>Downloading model, please wait…</span>
+                    </div>
+                  </div>
+                )}
+
+                {localModelStatus === 'available' && (
+                  <div className="form-group">
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--color-success)' }}>✓ Model available</span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* System Prompt */}
+            <div className="form-group">
+              <label className="form-label">System Prompt</label>
+              <textarea
+                className="sp-input"
+                rows="6"
+                value={systemPrompt}
+                onChange={e => setSystemPrompt(e.target.value)}
+                placeholder="Enter system prompt for AI behavior..."
+                style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
+              />
+              <div className="form-hint">
+                Defines the AI's behavior and rules. Changes apply to new queries. Default includes strict RAG behavior (no hallucination).
+              </div>
             </div>
 
             {/* RAG tuning */}
@@ -372,19 +530,25 @@ export default function SettingsPanel({ onRefresh }) {
               </div>
             </div>
 
-            <button className="btn btn-primary" type="submit" disabled={saving} style={{ width: 'auto', alignSelf: 'flex-start' }}>
+            {/* FIX: onClick instead of type="submit" */}
+            <button
+              className="btn btn-primary"
+              onClick={saveModelSettings}
+              disabled={saving}
+              style={{ width: 'auto', alignSelf: 'flex-start' }}
+            >
               {saving ? <span className="spinner-xs" /> : <Save size={14} />} Save Settings
             </button>
-          </form>
+          </div>
         </div>
       </div>
 
-      {/* ── Model Management ── */}
+      {/* ── Manage OpenRouter Models ── */}
       <div className="sp-card">
         <div className="sp-card-header">
           <div className="sp-card-title">
             <span className="sp-card-icon"><Package size={16} /></span>
-            Manage LLM Models
+            Manage OpenRouter Models
           </div>
           <button className="btn btn-ghost btn-xs" onClick={handleResetModels} disabled={resettingModels} title="Clear all models">
             {resettingModels ? <span className="spinner-xs" /> : <RotateCcw size={14} />} Clear All
@@ -393,11 +557,12 @@ export default function SettingsPanel({ onRefresh }) {
 
         <div className="sp-card-body">
           <p className="sp-desc">
-            Add or remove OpenRouter models. Use the model ID from <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer" className="sp-link">openrouter.ai/models</a> (e.g., <code>openai/gpt-4o-mini:free</code>).
+            Add or remove OpenRouter models to choose from (e.g., openai/gpt-4o-mini:free). Use the model ID from{' '}
+            <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer" className="sp-link">openrouter.ai/models</a>.
           </p>
 
-          {/* Add model form */}
-          <form className="add-model-form" onSubmit={handleAddModel}>
+          {/* FIX: replaced <form onSubmit> with <div> + onClick on Add button */}
+          <div className="add-model-form">
             <input
               className="sp-input"
               type="text"
@@ -416,15 +581,19 @@ export default function SettingsPanel({ onRefresh }) {
               autoComplete="off"
               spellCheck={false}
             />
-            <button className="btn btn-primary" type="submit" disabled={addingModel || !newModelId.trim() || !newModelName.trim()}>
+            <button
+              className="btn btn-primary"
+              onClick={handleAddModel}
+              disabled={addingModel || !newModelId.trim() || !newModelName.trim()}
+            >
               {addingModel ? <span className="spinner-xs" /> : <Plus size={14} />} Add Model
             </button>
-          </form>
+          </div>
 
           {/* Models list */}
           <div className="models-list">
             {models.length === 0 ? (
-              <div className="models-empty">No models configured. Reset to defaults or add one above.</div>
+              <div className="models-empty">No OpenRouter models configured.</div>
             ) : (
               models.map(m => (
                 <div key={m.id} className={`model-item ${m.active ? 'model-active' : ''}`}>
@@ -479,7 +648,7 @@ export default function SettingsPanel({ onRefresh }) {
               <div className="mgmt-card-title"><Download size={14} /> Backup & Restore</div>
               <div className="mgmt-card-detail">Knowledge base backup and restore</div>
               <div className="mgmt-actions">
-                <button className="btn btn-primary" onClick={createBackup} disabled={backupProgress || restoring}>
+                <button className="btn btn-primary" onClick={createBackup} disabled={!!backupProgress || restoring}>
                   {backupProgress ? 'Creating...' : <><Download size={12} /> Create Backup</>}
                 </button>
               </div>

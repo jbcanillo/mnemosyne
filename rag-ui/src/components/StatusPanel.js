@@ -130,6 +130,8 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
   const ollama = diagnostics?.ollama;
   const tu     = usage?.tokenUsage;
   const model  = usage?.currentModel || info?.models?.llm || '—';
+  // Determine current engine from info provider
+  const engine = info?.models?.provider === 'Local Ollama' ? 'local' : 'openrouter';
 
   // Cost estimate: ~$0.0005 per 1K tokens (rough average for free models)
   const estimatedCost = tu ? ((tu.totalTokens / 1000) * 0.0005).toFixed(4) : '0.0000';
@@ -175,10 +177,20 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
       {/* ── Service health cards ── */}
       <div className="status-grid">
         <StatusCard title="Server"       status={serverOnline ? 'online' : 'offline'} icon={<Activity size={15} />} detail={serverOnline ? 'Healthy' : 'Unreachable'} />
-        <StatusCard title="OpenRouter"   status={diagLoading ? 'loading' : or?.status === 'ok' ? 'online' : 'offline'} icon={<Globe size={15} />}
-          detail={diagLoading ? 'Checking…' : or?.status === 'ok' ? 'Connected' : or?.error ?? 'Not connected'} />
-        <StatusCard title="Vector Store" status={diagLoading ? 'loading' : vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={diagLoading ? 'Checking…' : `${vs?.totalChunks ?? 0} chunks indexed`} />
-        <StatusCard title="Cache"        status={diagLoading ? 'loading' : cache ? 'online' : 'offline'} icon={<Zap size={15} />} detail={diagLoading ? 'Checking…' : cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
+        <StatusCard 
+          title="OpenRouter"   
+          status={diagLoading ? 'loading' : (engine === 'openrouter' ? (or?.status === 'ok' ? 'online' : 'offline') : 'idle')} 
+          icon={<Globe size={15} />}
+          detail={diagLoading ? 'Checking…' : engine === 'openrouter' ? (or?.status === 'ok' ? 'Connected' : or?.error ?? 'Not connected') : 'Not in use'} 
+        />
+        <StatusCard 
+          title="Local LLM"     
+          status={diagLoading ? 'loading' : (engine === 'local' ? (ollama?.status === 'ok' ? 'online' : 'offline') : 'idle')} 
+          icon={<Zap size={15} />} 
+          detail={diagLoading ? 'Checking…' : engine === 'local' ? (ollama?.status === 'ok' ? `Connected` : ollama?.error ?? 'Not connected') : 'Not in use'} 
+        />
+        <StatusCard title="Vector Store"  status={diagLoading ? 'loading' : vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={diagLoading ? 'Checking…' : `${vs?.totalChunks ?? 0} chunks indexed`} />
+        <StatusCard title="Cache"         status={diagLoading ? 'loading' : cache ? 'online' : 'offline'} icon={<Zap size={15} />} detail={diagLoading ? 'Checking…' : cache ? `${cache.entries} entries · ${cache.ttl}s TTL` : 'Unavailable'} />
       </div>
 
       {/* ── Active Model Card ── */}
@@ -201,7 +213,7 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
             <div className="mi-card mi-card-main">
               <div className="mi-label">LLM</div>
               <div className="mi-model-name">{model}</div>
-              <div className="mi-sub">via OpenRouter · {or?.status === 'ok' ? 'Connected' : 'Disconnected'}</div>
+              <div className="mi-sub">via {engine === 'local' ? 'Local Ollama' : 'OpenRouter'} · {engine === 'openrouter' ? (or?.status === 'ok' ? 'Connected' : 'Disconnected') : (ollama?.status === 'ok' ? 'Connected' : 'Disconnected')}</div>
               <div className="mi-divider" />
               <div className="mi-label">Embedding</div>
               <div className="mi-embed-name">nomic-embed-text</div>
