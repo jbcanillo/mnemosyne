@@ -47,13 +47,33 @@
 
 /* ── Key form ── */
 .key-form  { display: flex; flex-direction: column; gap: 12px; }
-.key-input-wrap { position: relative; }
-.key-input-wrap .sp-input { padding-right: 44px; }
+.key-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: static;
+}
+.key-input-wrap .sp-input {
+  padding-right: 0;
+  flex: 1;
+  min-width: 200px;
+}
 .key-toggle {
-  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-  background: none; border: none; cursor: pointer; font-size: 15px; opacity: 0.5;
+  position: static;
+  transform: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  opacity: 0.5;
+  flex-shrink: 0;
+  padding: 4px;
+  color: var(--text)
 }
 .key-toggle:hover { opacity: 1; }
+.test-key-btn {
+  flex-shrink: 0;
+}
 .key-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
 /* ── Test result ── */
