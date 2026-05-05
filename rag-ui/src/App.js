@@ -146,7 +146,7 @@ function AuthenticatedApp() {
       {/* ── Tabs / Mobile sidebar ── */}
       <nav className={`tabs ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="tabs-logo-area">
-          <img src="/logo.svg" alt="Mnemosyne" className="tabs-logo-img" />
+          <img src="/logo.png" alt="Mnemosyne" className="tabs-logo-img" />
         </div>
         {TABS.map(t => (
           <button
@@ -219,7 +219,7 @@ function AppInner() {
       <div className="app-loading">
         <div className="login-loading-container">
           <div className="login-loading-logo">
-            <img src="/logo.svg" alt="Mnemosyne" className="login-loading-img" />
+            <img src="/logo.png" alt="Mnemosyne" className="login-loading-img" />
           </div>
           <div className="login-progress-bar">
             <div className="login-progress-fill" />

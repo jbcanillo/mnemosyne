@@ -39,7 +39,7 @@ export default function LoginScreen() {
         </div>
         <div className="login-loading-container">
           <div className="login-loading-logo">
-            <img src="/logo.svg" alt="Loading" className="login-loading-img" />
+            <img src="/logo.png" alt="Loading" className="login-loading-img" />
           </div>
           <div className="login-loading-text">Signing in...</div>
           <div className="login-progress-bar">
@@ -63,7 +63,7 @@ export default function LoginScreen() {
         {/* Header */}
         <div className="login-header">
           <div className="login-logo">
-            <img src="/logo.svg" alt="App Logo" className="logo-img" />
+            <img src="/logo.png" alt="App Logo" className="logo-img" />
           </div>
           <div className="login-title">Mnemosyne</div>
           <div className="login-subtitle">RAG Knowledge Base Agent</div>

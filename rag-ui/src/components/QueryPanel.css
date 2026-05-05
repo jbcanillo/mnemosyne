@@ -26,14 +26,15 @@
   border-radius: 0;
 }
 
-.conv-sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
+ .conv-sidebar-header {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   padding: 10px 16px;
+   border-bottom: 1px solid var(--border);
+   flex-shrink: 0;
+   min-height: 36px;
+ }
 
 .conv-sidebar-title {
   font-size: 13px;
@@ -712,47 +713,51 @@
 }
 
 /* ── Mobile Responsive ── */
-@media (max-width: 768px) {
-  .query-panel {
-    height: calc(100vh - 120px);
-  }
-  .conv-sidebar {
-    width: 240px;
-    min-width: 240px;
-  }
-  .conv-sidebar.closed {
-    width: 0;
-    min-width: 0;
-  }
-  .chat-area {
-    padding: 16px;
-  }
-  .message {
-    max-width: 95%;
-  }
-  .query-form {
-    padding: 10px;
-  }
-  .query-topbar {
-    padding: 8px 12px;
-  }
-  .query-topbar-title {
-    font-size: 12px;
-  }
-  .welcome-title {
-    font-size: 16px;
-  }
-  .welcome-subtitle {
-    font-size: 12px;
-  }
-  .example-queries {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .example-btn {
-    text-align: center;
-  }
-}
+ @media (max-width: 768px) {
+   .query-panel {
+     height: calc(100vh - 120px);
+   }
+   .conv-sidebar {
+     width: 240px;
+     min-width: 240px;
+   }
+   .conv-sidebar.closed {
+     width: 0;
+     min-width: 0;
+   }
+   .conv-sidebar-header {
+     padding: 8px 12px;
+     min-height: 32px;
+   }
+   .chat-area {
+     padding: 16px;
+   }
+   .message {
+     max-width: 95%;
+   }
+   .query-form {
+     padding: 10px;
+   }
+   .query-topbar {
+     padding: 8px 12px;
+   }
+   .query-topbar-title {
+     font-size: 12px;
+   }
+   .welcome-title {
+     font-size: 16px;
+   }
+   .welcome-subtitle {
+     font-size: 12px;
+   }
+   .example-queries {
+     flex-direction: column;
+     align-items: stretch;
+   }
+   .example-btn {
+     text-align: center;
+   }
+ }
 
 @media (max-width: 480px) {
   .query-panel {

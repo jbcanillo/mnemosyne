@@ -212,6 +212,48 @@ router.get('/healthcheck', eitherAuth, statusLimiter, async (req, res) => {
 router.get('/settings',          requireSession, settingsController.get);
 router.put('/settings',          requireSession, settingsController.update);
 router.post('/settings/test-key',requireSession, settingsController.testKey);
+router.post('/models/:modelId/test', requireSession, async (req, res) => {
+  const { modelId } = req.params;
+  const OpenAI = require('openai');
+  const cfg = require('./services/configService');
+  const apiKey = cfg.get('openrouterApiKey');
+  if (!apiKey) {
+    return res.status(400).json({ ok: false, error: 'No API key configured.' });
+  }
+  try {
+    const client = new OpenAI({
+      apiKey,
+      baseURL: 'https://openrouter.ai/api/v1',
+      defaultHeaders: {
+        'HTTP-Referer': process.env.APP_URL   || 'http://localhost:3000',
+        'X-Title':      process.env.APP_TITLE || 'Mnemosyne RAG'
+      }
+    });
+    const completion = await client.chat.completions.create({
+      model: modelId,
+      messages: [{ role: 'user', content: 'Reply with the single word: ok' }],
+      max_tokens: 5
+    });
+    const reply = completion.choices?.[0]?.message?.content?.trim();
+    res.json({
+      ok: true,
+      model: modelId,
+      reply,
+      tokens: completion.usage?.total_tokens ?? 0
+    });
+  } catch (err) {
+    const msg = err.message || String(err);
+    res.status(200).json({
+      ok: false,
+      model: modelId,
+      error: msg.includes('401') || msg.includes('User not found')
+        ? 'Invalid API key or model not accessible.'
+        : msg.includes('429')
+          ? 'Rate limited — model may be rate-limited but key is valid.'
+          : msg
+    });
+  }
+});
 
 // ── Local LLM Model Management ─────────────────────────────────────────
 router.post('/local-model/check', requireSession, async (req, res) => {
@@ -234,6 +276,27 @@ router.post('/local-model/pull', requireSession, async (req, res) => {
   try {
     await llm.ollama.pull({ model });
     res.json({ message: `Model ${model} pulled successfully` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/ollama/models', requireSession, async (req, res) => {
+  const llm = require('./services/llmService');
+  try {
+    const list = await llm.ollama.list();
+    res.json({ models: list.models.map(m => ({ name: m.name, size: m.size, modified_at: m.modified_at })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/ollama/models/:model', requireSession, async (req, res) => {
+  const { model } = req.params;
+  const llm = require('./services/llmService');
+  try {
+    await llm.ollama.delete({ model: decodeURIComponent(model) });
+    res.json({ message: `Model "${model}" deleted` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -85,14 +85,16 @@ export const ragApi = {
   deleteDocument:   (id) => api.delete(`/documents/${id}`),
   getDocumentStats: () => api.get('/documents/stats'),
 
-  // ── Admin ────────────────────────────────────────────────────────
-  getInfo:        () => api.get('/info'),
-  getDiagnostics: () => api.get('/diagnostics'),
-  getModels:      () => api.get('/models'),
-  switchModel:    (modelId) => api.post('/models/switch', { modelId }),
-  addModel:       (id, name) => api.post('/models', { id, name }),
-  deleteModel:    (modelId) => api.delete(`/models/${modelId}`),
-  resetModels:    () => api.post('/models/reset'),
+  // Admin / Model info
+  getInfo:          () => api.get('/info'),
+  getDiagnostics:   () => api.get('/diagnostics'),
+  getModels:        () => api.get('/models'),
+  getOllamaModels:  () => api.get('/ollama/models'),
+  deleteOllamaModel: (model) => api.delete(`/ollama/models/${encodeURIComponent(model)}`),
+  switchModel:      (modelId) => api.post('/models/switch', { modelId }),
+  addModel:         (id, name) => api.post('/models', { id, name }),
+  deleteModel:      (modelId) => api.delete(`/models/${modelId}`),
+  resetModels:      () => api.post('/models/reset'),
   clearCache:     () => api.delete('/cache'),
   resetVectorStore: () => api.post('/vector-store/reset'),
 
@@ -102,12 +104,13 @@ export const ragApi = {
   healthcheck:    () => api.get('/healthcheck'),
   getLogs:        (lines = 200) => api.get(`/logs?lines=${lines}`),
 
-   // Settings
-   getSettings:    () => api.get('/settings'),
-   updateSettings: (data) => api.put('/settings', data),
-   testApiKey:     () => api.post('/settings/test-key'),
-   checkLocalModel: (data) => api.post('/local-model/check', data),
-   pullLocalModel: (data) => api.post('/local-model/pull', data),
+  // Settings
+  getSettings:    () => api.get('/settings'),
+  updateSettings: (data) => api.put('/settings', data),
+  testApiKey:     () => api.post('/settings/test-key'),
+  testModel:      (modelId) => api.post(`/models/${encodeURIComponent(modelId)}/test`),
+  checkLocalModel: (data) => api.post('/local-model/check', data),
+  pullLocalModel: (data) => api.post('/local-model/pull', data),
    debugQuery:     (q) => api.get(`/query/debug?q=${encodeURIComponent(q)}`),
   health:         () => axios.get(`${BASE_URL.replace('/api', '')}/health`).then(r => r.data),
 
