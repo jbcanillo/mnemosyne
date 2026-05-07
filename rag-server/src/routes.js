@@ -6,7 +6,7 @@ const documentController = require('./controllers/documentController');
 const authController     = require('./controllers/authController');
 const analyticsController = require('./controllers/analyticsController');
 const uploadMiddleware   = require('./middleware/upload');
-const { requireApiKey, requireSession } = require('./middleware/auth');
+const { requireApiKey, requireSession, eitherAuth } = require('./middleware/auth');
 const settingsController = require('./controllers/settingsController');
 const { loginLimiter, queryLimiter, statusLimiter, uploadLimiter } = require('./middleware/rateLimiter');
 const modelsService      = require('./services/modelsService');
@@ -109,18 +109,18 @@ router.get('/query/test', eitherAuth, async (req, res) => {
 });
 
 // ── Documents (Session only) ─────────────────────────────────────────
-router.post('/documents/upload',             requireSession, uploadLimiter, uploadMiddleware.single('file'), documentController.upload);
-router.get('/documents',                     requireSession, documentController.list);
-router.get('/documents/stats',               requireSession, documentController.stats);
-router.get('/documents/tags',                requireSession, documentController.getTags);
-router.get('/documents/ingest-status/:jobId',requireSession, statusLimiter, documentController.ingestStatus);
-router.get('/documents/:id/download',        requireSession, documentController.download);
-router.delete('/documents/:id',              requireSession, documentController.remove);
-router.put('/documents/:id/tags',            requireSession, documentController.updateTags);
+router.post('/documents/upload',             eitherAuth, uploadLimiter, uploadMiddleware.single('file'), documentController.upload);
+router.get('/documents',                     eitherAuth, documentController.list);
+router.get('/documents/stats',               eitherAuth, documentController.stats);
+router.get('/documents/tags',                eitherAuth, documentController.getTags);
+router.get('/documents/ingest-status/:jobId',eitherAuth, statusLimiter, documentController.ingestStatus);
+router.get('/documents/:id/download',        eitherAuth, documentController.download);
+router.delete('/documents/:id',              eitherAuth, documentController.remove);
+router.put('/documents/:id/tags',            eitherAuth, documentController.updateTags);
 
 // ── Admin (Session only) ──────────────────────────────────────────────
-router.delete('/cache',            requireSession, queryController.clearCache);
-router.post('/vector-store/reset', requireSession, async (req, res) => {
+router.delete('/cache',            eitherAuth, queryController.clearCache);
+router.post('/vector-store/reset', eitherAuth, async (req, res) => {
   try {
     const vs = require('./services/vectorStore');
     await vs.reset();
@@ -129,11 +129,11 @@ router.post('/vector-store/reset', requireSession, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router.get('/info',     requireSession, statusLimiter, queryController.info);
+router.get('/info',     eitherAuth, statusLimiter, queryController.info);
 
 // ── API Keys (Session only) ───────────────────────────────────────────
 const apiKeyService = require('./services/apiKeyService');
-router.get('/api-keys', requireSession, async (req, res) => {
+router.get('/api-keys', eitherAuth, async (req, res) => {
   try {
     const keys = await apiKeyService.getAllKeys();
     res.json({ keys });
@@ -142,7 +142,7 @@ router.get('/api-keys', requireSession, async (req, res) => {
   }
 });
 
-router.post('/api-keys', requireSession, async (req, res) => {
+router.post('/api-keys', eitherAuth, async (req, res) => {
   const { name } = req.body;
   if (!name || name.trim().length === 0) {
     return res.status(400).json({ error: 'Name is required' });
@@ -155,7 +155,7 @@ router.post('/api-keys', requireSession, async (req, res) => {
   }
 });
 
-router.delete('/api-keys/:id', requireSession, async (req, res) => {
+router.delete('/api-keys/:id', eitherAuth, async (req, res) => {
   const { id } = req.params;
   try {
     const deletedKey = await apiKeyService.deleteKey(id);
@@ -165,7 +165,7 @@ router.delete('/api-keys/:id', requireSession, async (req, res) => {
   }
 });
 
-router.post('/api-keys/:id/toggle', requireSession, async (req, res) => {
+router.post('/api-keys/:id/toggle', eitherAuth, async (req, res) => {
   const { id } = req.params;
   try {
     const key = await apiKeyService.toggleKey(id);
@@ -176,7 +176,7 @@ router.post('/api-keys/:id/toggle', requireSession, async (req, res) => {
 });
 
 // ── Token usage & model info (Session only) ──────────────────────────
-router.get('/usage', requireSession, (req, res) => {
+router.get('/usage', eitherAuth, (req, res) => {
   const cfg = require('./services/configService');
   const llm = require('./services/llmService');
   res.json({
@@ -187,7 +187,7 @@ router.get('/usage', requireSession, (req, res) => {
   });
 });
 
-router.delete('/usage', requireSession, (req, res) => {
+router.delete('/usage', eitherAuth, (req, res) => {
   const cfg = require('./services/configService');
   cfg.resetTokenUsage();
   res.json({ message: 'Token usage stats reset.' });
@@ -254,10 +254,10 @@ router.get('/healthcheck', eitherAuth, statusLimiter, async (req, res) => {
 });
 
 // ── Settings (Session only) ───────────────────────────────────────────
-router.get('/settings',          requireSession, settingsController.get);
-router.put('/settings',          requireSession, settingsController.update);
-router.post('/settings/test-key',requireSession, settingsController.testKey);
-router.post('/models/:modelId/test', requireSession, async (req, res) => {
+router.get('/settings',          eitherAuth, settingsController.get);
+router.put('/settings',          eitherAuth, settingsController.update);
+router.post('/settings/test-key',eitherAuth, settingsController.testKey);
+router.post('/models/:modelId/test', eitherAuth, async (req, res) => {
   const { modelId } = req.params;
   const OpenAI = require('openai');
   const cfg = require('./services/configService');
@@ -301,7 +301,7 @@ router.post('/models/:modelId/test', requireSession, async (req, res) => {
 });
 
 // ── Local LLM Model Management ─────────────────────────────────────────
-router.post('/local-model/check', requireSession, async (req, res) => {
+router.post('/local-model/check', eitherAuth, async (req, res) => {
   const { model } = req.body;
   if (!model) return res.status(400).json({ error: 'Model name required' });
   const llm = require('./services/llmService');
@@ -314,7 +314,7 @@ router.post('/local-model/check', requireSession, async (req, res) => {
   }
 });
 
-router.post('/local-model/pull', requireSession, async (req, res) => {
+router.post('/local-model/pull', eitherAuth, async (req, res) => {
   const { model } = req.body;
   if (!model) return res.status(400).json({ error: 'Model name required' });
   const llm = require('./services/llmService');
@@ -326,7 +326,7 @@ router.post('/local-model/pull', requireSession, async (req, res) => {
   }
 });
 
-router.get('/ollama/models', requireSession, async (req, res) => {
+router.get('/ollama/models', eitherAuth, async (req, res) => {
   const llm = require('./services/llmService');
   try {
     const list = await llm.ollama.list();
@@ -336,7 +336,7 @@ router.get('/ollama/models', requireSession, async (req, res) => {
   }
 });
 
-router.delete('/ollama/models/:model', requireSession, async (req, res) => {
+router.delete('/ollama/models/:model', eitherAuth, async (req, res) => {
   const { model } = req.params;
   const llm = require('./services/llmService');
   try {
@@ -348,7 +348,7 @@ router.delete('/ollama/models/:model', requireSession, async (req, res) => {
 });
 
 // ── Live model switching (Session only) ───────────────────────────────
-router.get('/models', requireSession, async (req, res) => {
+router.get('/models', eitherAuth, async (req, res) => {
   const llm = require('./services/llmService');
 
   try {
@@ -368,7 +368,7 @@ router.get('/models', requireSession, async (req, res) => {
   }
 });
 
-router.post('/models/switch', requireSession, async (req, res) => {
+router.post('/models/switch', eitherAuth, async (req, res) => {
   const { modelId } = req.body;
   if (!modelId) return res.status(400).json({ error: 'modelId required' });
   const llm = require('./services/llmService');
@@ -381,7 +381,7 @@ router.post('/models/switch', requireSession, async (req, res) => {
 });
 
 // ── Model CRUD (Session only) ─────────────────────────────────────────
-router.post('/models', requireSession, async (req, res) => {
+router.post('/models', eitherAuth, async (req, res) => {
   const { id, name } = req.body;
   if (!id || !name) return res.status(400).json({ error: 'Both id and name are required' });
   try {
@@ -392,7 +392,7 @@ router.post('/models', requireSession, async (req, res) => {
   }
 });
 
-router.delete('/models/:modelId', requireSession, async (req, res) => {
+router.delete('/models/:modelId', eitherAuth, async (req, res) => {
   const { modelId } = req.params;
   try {
     await modelsService.deleteModel(modelId);
@@ -402,7 +402,7 @@ router.delete('/models/:modelId', requireSession, async (req, res) => {
   }
 });
 
-router.post('/models/reset', requireSession, async (req, res) => {
+router.post('/models/reset', eitherAuth, async (req, res) => {
   try {
     await modelsService.reset();
     const models = await modelsService.getAllModels();
@@ -413,7 +413,7 @@ router.post('/models/reset', requireSession, async (req, res) => {
 });
 
 // ── Backup & Restore (Session only) ───────────────────────────────────
-router.post('/backup/create', requireSession, async (req, res) => {
+router.post('/backup/create', eitherAuth, async (req, res) => {
   try {
     const backup = require('./services/backupService');
     const result = await backup.createBackup();
@@ -423,7 +423,7 @@ router.post('/backup/create', requireSession, async (req, res) => {
   }
 });
 
-router.get('/backup/list', requireSession, async (req, res) => {
+router.get('/backup/list', eitherAuth, async (req, res) => {
   try {
     const backup = require('./services/backupService');
     const backups = await backup.listBackups();
@@ -433,7 +433,7 @@ router.get('/backup/list', requireSession, async (req, res) => {
   }
 });
 
-router.post('/backup/restore', requireSession, async (req, res) => {
+router.post('/backup/restore', eitherAuth, async (req, res) => {
   const { filename } = req.body;
   if (!filename) return res.status(400).json({ error: 'filename required' });
   try {
@@ -445,7 +445,7 @@ router.post('/backup/restore', requireSession, async (req, res) => {
   }
 });
 
-router.delete('/backup/:filename', requireSession, async (req, res) => {
+router.delete('/backup/:filename', eitherAuth, async (req, res) => {
   const { filename } = req.params;
   if (!filename) return res.status(400).json({ error: 'filename required' });
   try {
@@ -458,7 +458,7 @@ router.delete('/backup/:filename', requireSession, async (req, res) => {
 });
 
 // ── Sessions / Conversations (Session only) ───────────────────────────
-router.post('/sessions', requireSession, async (req, res) => {
+router.post('/sessions', eitherAuth, async (req, res) => {
   const { title } = req.body;
   const userId = req.user?.id || 'default-user';
   try {
@@ -473,7 +473,7 @@ router.post('/sessions', requireSession, async (req, res) => {
   }
 });
 
-router.get('/sessions', requireSession, async (req, res) => {
+router.get('/sessions', eitherAuth, async (req, res) => {
   const userId = req.user?.id || 'default-user';
   try {
     logger.info(`[API] GET /sessions - User: ${userId}`);
@@ -487,7 +487,7 @@ router.get('/sessions', requireSession, async (req, res) => {
   }
 });
 
-router.get('/sessions/:sessionId', requireSession, async (req, res) => {
+router.get('/sessions/:sessionId', eitherAuth, async (req, res) => {
   const { sessionId } = req.params;
   const { limit = 50, offset = 0 } = req.query;
   try {
@@ -508,7 +508,7 @@ router.get('/sessions/:sessionId', requireSession, async (req, res) => {
   }
 });
 
-router.post('/sessions/:sessionId/messages', requireSession, async (req, res) => {
+router.post('/sessions/:sessionId/messages', eitherAuth, async (req, res) => {
   const { sessionId } = req.params;
   const { type, text, sources, fromCache, relevantChunks, jobId } = req.body;
   if (!type || !text) return res.status(400).json({ error: 'type and text required' });
@@ -525,7 +525,7 @@ router.post('/sessions/:sessionId/messages', requireSession, async (req, res) =>
   }
 });
 
-router.put('/sessions/:sessionId', requireSession, async (req, res) => {
+router.put('/sessions/:sessionId', eitherAuth, async (req, res) => {
   const { sessionId } = req.params;
   const { title, tags } = req.body;
   try {
@@ -545,7 +545,7 @@ router.put('/sessions/:sessionId', requireSession, async (req, res) => {
   }
 });
 
-router.delete('/sessions/:sessionId', requireSession, async (req, res) => {
+router.delete('/sessions/:sessionId', eitherAuth, async (req, res) => {
   const { sessionId } = req.params;
   const userId = req.user?.id || 'default-user';
   try {
@@ -560,7 +560,7 @@ router.delete('/sessions/:sessionId', requireSession, async (req, res) => {
   }
 });
 
-router.post('/sessions/:sessionId/clear', requireSession, async (req, res) => {
+router.post('/sessions/:sessionId/clear', eitherAuth, async (req, res) => {
   const { sessionId } = req.params;
   try {
     logger.info(`[API] POST /sessions/${sessionId}/clear - User: ${req.user?.id || 'default-user'}`);
@@ -576,23 +576,8 @@ router.post('/sessions/:sessionId/clear', requireSession, async (req, res) => {
 
 module.exports = router;
 
-function eitherAuth(req, res, next) {
-  const hasXApiKey = !!req.headers['x-api-key'];
-  const authHeader = req.headers['authorization'] || '';
-  const hasBearer = authHeader.toLowerCase().startsWith('bearer ');
-
-  if (!hasXApiKey && !hasBearer) {
-    logger.info(`[Auth] eitherAuth: no API key header found, falling back to session auth. headers=${JSON.stringify({
-      xApiKey: hasXApiKey,
-      authorization: hasBearer ? 'bearer-present' : 'missing'
-    })}`);
-  }
-
-  return hasXApiKey || hasBearer ? requireApiKey(req, res, next) : requireSession(req, res, next);
-}
-
-// ── Diagnostics (Session only) — connectivity check ──────────────────
-router.get('/diagnostics', requireSession, async (req, res) => {
+// ── Diagnostics — connectivity check ──────────────────
+router.get('/diagnostics', eitherAuth, async (req, res) => {
   const llm    = require('./services/llmService');
   const vs     = require('./services/vectorStore');
   const result = { ollama: {}, chromadb: {}, redis: {} };
@@ -659,7 +644,7 @@ router.get('/diagnostics', requireSession, async (req, res) => {
 });
 
 // ── Logs (Session only) — read recent server logs ────────────────────
-router.get('/logs', requireSession, async (req, res) => {
+router.get('/logs', eitherAuth, async (req, res) => {
   const fs = require('fs');
   const path = require('path');
   const { logger } = require('./utils/logger');

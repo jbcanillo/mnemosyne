@@ -167,6 +167,24 @@ function requireSession(req, res, next) {
   next();
 }
 
+/**
+ * eitherAuth - Accepts EITHER API key OR session token
+ * Use this on routes that should be accessible by both server-to-server (API key)
+ * and browser/UI (session token) clients.
+ */
+function eitherAuth(req, res, next) {
+  // Check if API key is provided
+  const hasApiKey = req.headers['x-api-key'] || req.headers['authorization'];
+
+  if (hasApiKey) {
+    // Try API key authentication
+    return requireApiKey(req, res, next);
+  }
+
+  // Otherwise try session token
+  return requireSession(req, res, next);
+}
+
 function invalidateSession(token) {
   activeSessions.delete(token);
 }
@@ -174,6 +192,7 @@ function invalidateSession(token) {
 module.exports = {
   requireApiKey,
   requireSession,
+  eitherAuth,
   createSession,
   invalidateSession,
   ADMIN_USER,
