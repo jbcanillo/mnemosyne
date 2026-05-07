@@ -13,7 +13,6 @@ import {
   AlertCircle, RefreshCw, Info, X, Mouse, MessageSquare,
 } from "lucide-react";
 import ragApi from "../api";
-import "./AnalyticsPanel.css";
 
 // ── colour helpers ────────────────────────────────────────────────────────────
 

@@ -19,7 +19,6 @@ import {
   Info,
 } from "lucide-react";
 import { ragApi } from "../api";
-import "./QueryPanel.css";
 
 // Load example queries from environment, fallback to defaults
 const EXAMPLE_QUERIES = process.env.REACT_APP_EXAMPLE_QUERIES

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { Key, Bot, Package, Plus, Trash2, RotateCcw, Eye, EyeOff, Save, Network, FolderOpen, Download, Upload, Shield, Database, HardDrive, Cloud } from 'lucide-react';
 import { ragApi } from '../api';
-import './SettingsPanel.css';
 
 export default function SettingsPanel({ onRefresh }) {
   const [settings, setSettings] = useState(null);

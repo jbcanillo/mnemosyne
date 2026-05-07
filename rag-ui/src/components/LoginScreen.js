@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import './LoginScreen.css';
 
 export default function LoginScreen() {
   const { login } = useAuth();
