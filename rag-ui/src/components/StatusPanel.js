@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { HeartPulse, Globe, Database, Zap, Clock, FolderOpen, Search, RefreshCw, Trash2, Download, Upload, Shield, FileText, Activity, Terminal } from 'lucide-react';
 import { ragApi } from '../api';
-import './StatusPanel.css';
 
 export default function StatusPanel({ info, serverOnline, onRefresh }) {
   const [diagLoading,  setDiagLoading]  = useState(false);

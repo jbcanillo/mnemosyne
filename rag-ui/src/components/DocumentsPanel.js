@@ -3,7 +3,6 @@ import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
 import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, Loader2, Inbox, Tag, X, Edit2, RefreshCw, Download } from 'lucide-react';
 import { ragApi } from '../api';
-import './DocumentsPanel.css';
 
 const SUPPORTED = ['.pdf', '.xlsx', '.xls', '.csv', '.md', '.txt', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif'];
 const POLL_INTERVAL = 3000;   // poll every 3s
