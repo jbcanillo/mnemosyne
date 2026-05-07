@@ -126,11 +126,11 @@ export default function LoginScreen() {
         </form>
 
        <div className="login-footer">
-          <span>© {new Date().getFullYear()} Mnemosyne RAG Knowledge Base</span>
+          <span>© {new Date().getFullYear()} Mnemosyne</span>
           <span><br /></span>
-          <span>Self-hosted Retrieval-Augmented Generation + OCR</span>
+          <span>Open-Source Self-Hosted AI Knowledge Base with RAG + OCR</span>
           <span><br /></span>
-          <span>Powered by <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer">OpenRouter</a></span>
+          <span>Powered by <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>OpenRouter</a> and <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>Ollama</a></span>
         </div>
       </div>
     </div>

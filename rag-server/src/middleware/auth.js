@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { logger } = require('../utils/logger');
+const apiKeyService = require('../services/apiKeyService');
 
 /**
  * API Key Authentication Middleware
@@ -9,16 +10,22 @@ const { logger } = require('../utils/logger');
  *   2. Header:  Authorization: Bearer <key>
  *   3. Query:   ?api_key=<key>   (only for GET /health — disabled on mutation routes)
  *
- * Key is compared with timing-safe equals to prevent timing attacks.
+ * Key is validated against the configured API keys in Redis.
  */
 
-const VALID_KEY = process.env.RAG_API_KEY;
-
-if (!VALID_KEY || VALID_KEY.length < 32) {
-  // Fail hard on startup if key is missing or too short
-  logger.error('FATAL: RAG_API_KEY is not set or is shorter than 32 characters. Refusing to start.');
+// Initialize API key service
+let apiKeyServiceReady = false;
+apiKeyService.initialize().then(() => {
+  apiKeyServiceReady = true;
+  logger.info('[Auth] API key service initialized');
+}).catch(err => {
+  logger.error('[Auth] Failed to initialize API key service:', err.message);
   process.exit(1);
-}
+});
+
+// For backward compatibility, allow the single RAG_API_KEY if no keys are configured
+const VALID_KEY = process.env.RAG_API_KEY;
+const useLegacyKey = VALID_KEY && VALID_KEY.length >= 32;
 
 function extractKey(req) {
   // 1. X-API-Key header (preferred)
@@ -58,7 +65,16 @@ function timingSafeCompare(a, b) {
  * requireApiKey — attach to any route that needs protection
  */
 function requireApiKey(req, res, next) {
+  if (!apiKeyServiceReady) {
+    logger.error(`Auth: API key service not ready — ${req.method} ${req.path} from ${req.ip}`);
+    return res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Authentication service is initializing. Please try again.'
+    });
+  }
+
   const provided = extractKey(req);
+  logger.info(`[Auth] requireApiKey: extracted key=${provided ? 'yes' : 'no'} from ${req.method} ${req.path}`);
 
   if (!provided) {
     logger.warn(`Auth: missing key — ${req.method} ${req.path} from ${req.ip}`);
@@ -68,17 +84,28 @@ function requireApiKey(req, res, next) {
     });
   }
 
-  if (!timingSafeCompare(provided, VALID_KEY)) {
-    logger.warn(`Auth: invalid key — ${req.method} ${req.path} from ${req.ip}`);
-    return res.status(403).json({
-      error: 'Forbidden',
-      message: 'Invalid API key.'
-    });
+  // Try to validate against configured API keys first
+  const validKey = apiKeyService.validateKey(provided);
+  if (validKey) {
+    // Key is valid from configured keys
+    req.authenticated = true;
+    req.apiKey = validKey;
+    return next();
   }
 
-  // Key is valid — attach a flag so downstream code can trust the request
-  req.authenticated = true;
-  next();
+  // Fall back to legacy single RAG_API_KEY from environment
+  if (useLegacyKey && timingSafeCompare(provided, VALID_KEY)) {
+    req.authenticated = true;
+    req.apiKey = { name: 'Default API Key', id: 'default', key: VALID_KEY };
+    return next();
+  }
+
+  // Key is invalid
+  logger.warn(`Auth: invalid key — ${req.method} ${req.path} from ${req.ip}`);
+  return res.status(403).json({
+    error: 'Forbidden',
+    message: 'Invalid API key.'
+  });
 }
 
 /**

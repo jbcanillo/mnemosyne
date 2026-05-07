@@ -111,7 +111,11 @@ export const ragApi = {
   testModel:      (modelId) => api.post(`/models/${encodeURIComponent(modelId)}/test`),
   checkLocalModel: (data) => api.post('/local-model/check', data),
   pullLocalModel: (data) => api.post('/local-model/pull', data),
-   debugQuery:     (q) => api.get(`/query/debug?q=${encodeURIComponent(q)}`),
+  // ── API Key Management
+  getApiKeys:      () => api.get('/api-keys'),
+  createApiKey:    (name) => api.post('/api-keys', { name }),
+  deleteApiKey:    (id) => api.delete(`/api-keys/${id}`),
+  toggleApiKey:    (id) => api.post(`/api-keys/${id}/toggle`),   debugQuery:     (q) => api.get(`/query/debug?q=${encodeURIComponent(q)}`),
   health:         () => axios.get(`${BASE_URL.replace('/api', '')}/health`).then(r => r.data),
 
   // ── Backup & Restore ───────────────────────────────────────────

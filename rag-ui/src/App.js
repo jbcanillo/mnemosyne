@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { User, LogOut, MessageSquare, BookOpen, Activity, Settings, Sun, Moon, BarChart3 } from 'lucide-react';
+import { User, LogOut, MessageSquare, BookOpen, Activity, Settings, Sun, Moon, BarChart3, Shield } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import QueryPanel from './components/QueryPanel';
 import DocumentsPanel from './components/DocumentsPanel';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import StatusPanel from './components/StatusPanel';
 import SettingsPanel from './components/SettingsPanel';
+import ApiKeysPanel from './components/ApiKeysPanel';
 import { ragApi } from './api';
 import './App.css';
 
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'documents', label: 'Knowledge Base', icon: <BookOpen size={14} /> },
   { id: 'analytics', label: 'Analytics',     icon: <BarChart3 size={14} /> },
   { id: 'status',    label: 'System Status',  icon: <Activity size={14} /> },
+  { id: 'apikeys',   label: 'API Keys',      icon: <Shield size={14} /> },
   { id: 'settings',  label: 'Settings',       icon: <Settings size={14} /> },
 ];
 
@@ -180,16 +182,19 @@ function AuthenticatedApp() {
         <div style={{ display: activeTab === 'settings'  ? 'contents' : 'none' }}>
           <SettingsPanel onRefresh={checkHealth} />
         </div>
+        <div style={{ display: activeTab === 'apikeys'   ? 'contents' : 'none' }}>
+          <ApiKeysPanel />
+        </div>
       </main>
 
       {/* ── Footer ── */}
       <footer className="app-footer">
         <div className="footer-content">
-          <span>© {new Date().getFullYear()} Mnemosyne RAG Knowledge Base</span>
-          <span className="footer-sep">·</span>
-          <span>Self-hosted Retrieval-Augmented Generation + OCR</span>
-          <span className="footer-sep">·</span>
-          <span>Powered by <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer">OpenRouter</a></span>
+          <span>© {new Date().getFullYear()} Mnemosyne</span>
+          <span><br /></span>
+          <span>Open-Source Self-Hosted AI Knowledge Base with RAG + OCR</span>
+          <span><br /></span>
+          <span>Powered by <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>OpenRouter</a> and <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>Ollama</a></span>
         </div>
       </footer>
 
