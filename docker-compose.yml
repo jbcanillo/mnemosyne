@@ -166,7 +166,7 @@ services:
       - rag_config:/data/config
       - rag_documents:/data/documents
     ports:
-      - "127.0.0.1:3001:3001"
+      - "3001:3001"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
       interval: 30s

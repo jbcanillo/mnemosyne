@@ -5,6 +5,7 @@ FROM node:20-alpine
 # tesseract-ocr-data-eng: English language data for Tesseract
 # poppler-utils: PDF to image conversion (pdftoppm)
 # python3 make g++: build tools for native Node modules
+# wget: needed for Docker healthcheck
 RUN apk add --no-cache \
     tesseract-ocr \
     tesseract-ocr-data-eng \
@@ -12,7 +13,8 @@ RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    bash
+    bash \
+    wget
 
 WORKDIR /app
 
