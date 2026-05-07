@@ -12,21 +12,23 @@ const app  = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Security headers ─────────────────────────────────────────────────
-// Relax CSP for Swagger UI (needs inline scripts/styles)
-// Disable COOP/COEP for non-localhost access (avoids "untrustworthy origin" errors)
+// Relax CSP for Swagger UI (needs inline scripts/styles, web workers)
+// Disable COOP/COEP/HSTS for non-localhost access (avoids "untrustworthy origin" errors)
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   crossOriginOpenerPolicy: false,  // Disable COOP - causes issues on IP-based access
   crossOriginEmbedderPolicy: false, // Disable COEP - not needed for Swagger UI
+  hsts: false, // Disable HSTS - prevents browser from forcing HTTPS upgrade
   contentSecurityPolicy: {
     directives: {
       defaultSrc:  ["'self'"],
-      scriptSrc:   ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrc:   ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:"],
       styleSrc:    ["'self'", "'unsafe-inline'"],
       imgSrc:      ["'self'", 'data:', 'https:'],
       connectSrc:  ["'self'", 'http:', 'https:'],
       fontSrc:     ["'self'", 'data:'],
-      frameSrc:    ["'self'"]
+      frameSrc:    ["'self'"],
+      workerSrc:   ["'self'", "blob:"] // Allow web workers for Swagger UI
     }
   }
 }));
