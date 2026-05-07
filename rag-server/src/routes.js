@@ -131,6 +131,50 @@ router.post('/vector-store/reset', requireSession, async (req, res) => {
 });
 router.get('/info',     requireSession, statusLimiter, queryController.info);
 
+// ── API Keys (Session only) ───────────────────────────────────────────
+const apiKeyService = require('./services/apiKeyService');
+router.get('/api-keys', requireSession, async (req, res) => {
+  try {
+    const keys = await apiKeyService.getAllKeys();
+    res.json({ keys });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api-keys', requireSession, async (req, res) => {
+  const { name } = req.body;
+  if (!name || name.trim().length === 0) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  try {
+    const key = await apiKeyService.createKey(name.trim());
+    res.status(201).json({ key });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/api-keys/:id', requireSession, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const deletedKey = await apiKeyService.deleteKey(id);
+    res.json({ message: 'API key deleted', key: deletedKey });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+router.post('/api-keys/:id/toggle', requireSession, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const key = await apiKeyService.toggleKey(id);
+    res.json({ message: `API key ${key.active ? 'activated' : 'deactivated'}`, key });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
 // ── Token usage & model info (Session only) ──────────────────────────
 router.get('/usage', requireSession, (req, res) => {
   const cfg = require('./services/configService');
@@ -200,10 +244,11 @@ router.get('/healthcheck', eitherAuth, statusLimiter, async (req, res) => {
   }
 
   const allOk = Object.values(checks).every(c => c.ok);
+  const apiKeyService = require('./services/apiKeyService');
   res.status(allOk ? 200 : 207).json({
     status:    allOk ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
-    keySet:    cfg.hasApiKey(),
+    keySet:    apiKeyService.hasKeys(),
     checks
   });
 });
@@ -532,10 +577,18 @@ router.post('/sessions/:sessionId/clear', requireSession, async (req, res) => {
 module.exports = router;
 
 function eitherAuth(req, res, next) {
-  const hasApiKey =
-    req.headers['x-api-key'] ||
-    (req.headers['authorization'] || '').toLowerCase().startsWith('bearer ');
-  return hasApiKey ? requireApiKey(req, res, next) : requireSession(req, res, next);
+  const hasXApiKey = !!req.headers['x-api-key'];
+  const authHeader = req.headers['authorization'] || '';
+  const hasBearer = authHeader.toLowerCase().startsWith('bearer ');
+
+  if (!hasXApiKey && !hasBearer) {
+    logger.info(`[Auth] eitherAuth: no API key header found, falling back to session auth. headers=${JSON.stringify({
+      xApiKey: hasXApiKey,
+      authorization: hasBearer ? 'bearer-present' : 'missing'
+    })}`);
+  }
+
+  return hasXApiKey || hasBearer ? requireApiKey(req, res, next) : requireSession(req, res, next);
 }
 
 // ── Diagnostics (Session only) — connectivity check ──────────────────

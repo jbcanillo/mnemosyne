@@ -368,7 +368,15 @@ export default function AnalyticsPanel() {
   };
 
    const noData = (icon, msg) => (
-     <div className="no-data-message">{icon}<p>{msg}</p></div>
+     <div className="no-data-message" style={{
+       display: 'flex',
+       flexDirection: 'column',
+       alignItems: 'center',
+       justifyContent: 'center',
+       height: '100%',
+       minHeight: '240px',
+       color: 'var(--text3)'
+     }}>{icon}<p style={{ marginTop: '12px' }}>{msg}</p></div>
    );
 
    // Get unique months from data for filter dropdown
@@ -466,7 +474,7 @@ export default function AnalyticsPanel() {
       <div className="charts-grid">
 
          {/* 1. Conversations per day — line chart with multiple metrics */}
-         <div className="chart-card wide">
+         <div className="chart-card wide" style={{ gridColumn: 'span 2' }}>
            <div className="card-header">
              <h3><LineChart3 size={15} /> Conversations per Day</h3>
              {availableMonths.length > 0 && (

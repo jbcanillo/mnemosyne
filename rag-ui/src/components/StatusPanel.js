@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { HeartPulse, Globe, Database, Zap, Clock, FolderOpen, Search, RefreshCw, Trash2, Download, Upload, Shield, FileText, Activity, Terminal } from 'lucide-react';
+import { HeartPulse, Globe, Database, Zap, Clock, FolderOpen, Search, RefreshCw, Trash2, Download, Upload, Shield, FileText, Activity, Terminal, RotateCw, Computer } from 'lucide-react';
 import { ragApi } from '../api';
 
 export default function StatusPanel({ info, serverOnline, onRefresh }) {
@@ -185,7 +185,7 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
         <StatusCard 
           title="Local LLM"     
           status={diagLoading ? 'loading' : (engine === 'local' ? (ollama?.status === 'ok' ? 'online' : 'offline') : 'idle')} 
-          icon={<Zap size={15} />} 
+          icon={<Computer size={15} />} 
           detail={diagLoading ? 'Checking…' : engine === 'local' ? (ollama?.status === 'ok' ? `Connected` : ollama?.error ?? 'Not connected') : 'Not in use'} 
         />
         <StatusCard title="Vector Store"  status={diagLoading ? 'loading' : vs && !vs.error ? 'online' : 'offline'} icon={<Database size={15} />} detail={diagLoading ? 'Checking…' : `${vs?.totalChunks ?? 0} chunks indexed`} />

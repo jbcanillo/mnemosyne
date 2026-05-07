@@ -44,10 +44,42 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(spec, {
     body { background: #04050a; }
     .swagger-ui { color: #eef0f8; }
   `,
+  customJs: `
+    window.onload = function() {
+      // Auto-apply API key if stored in localStorage
+      const apiKey = localStorage.getItem('swagger_api_key');
+      if (apiKey) {
+        ui.authActions.authorize({
+          ApiKeyAuth: { name: 'X-API-Key', schema: { type: 'apiKey', in: 'header', name: 'X-API-Key' }, value: apiKey }
+        });
+      }
+
+      // Listen for authorization changes and store API key
+      ui.authActions.preAuthorizeApiKey('ApiKeyAuth', function(auth) {
+        if (auth && auth.value) {
+          localStorage.setItem('swagger_api_key', auth.value);
+        }
+      });
+    };
+  `,
   swaggerOptions: {
     persistAuthorization: true,
     displayRequestDuration: true,
-    defaultModelsExpandDepth: -1
+    defaultModelsExpandDepth: -1,
+    requestInterceptor: (req) => {
+      // Ensure API key is sent if authorized
+      if (req.headers && req.headers['X-API-Key']) {
+        console.log('Swagger sending X-API-Key:', req.headers['X-API-Key'].substring(0, 8) + '...');
+      }
+      return req;
+    },
+    responseInterceptor: (res) => {
+      // Log responses for debugging
+      if (res.status === 401 || res.status === 403) {
+        console.log('Auth failed:', res.status, res.statusText);
+      }
+      return res;
+    }
   }
 }));
 
@@ -57,13 +89,13 @@ app.use('/api', routes);
 // ── Public health check ───────────────────────────────────────────────
 app.get('/health', (req, res) => {
   const llm = require('./services/llmService');
-  const cfg = require('./services/configService');
+  const apiKeyService = require('./services/apiKeyService');
   res.json({
     status:    'ok',
     timestamp: new Date().toISOString(),
     service:   'Mnemosyne RAG Server',
     ollama:    llm.embeddingReady ? 'ready' : 'initializing',
-    keySet:    cfg.hasApiKey()
+    keySet:    apiKeyService.hasKeys()
   });
 });
 
@@ -105,6 +137,14 @@ app.listen(PORT, '0.0.0.0', async () => {
     await ms.initialize();
   } catch (err) {
     logger.error('Models service init error:', err.message);
+  }
+
+  // Init API key service (migrate legacy key if needed)
+  try {
+    const aks = require('./services/apiKeyService');
+    await aks.initialize();
+  } catch (err) {
+    logger.error('API key service init error:', err.message);
   }
 });
 

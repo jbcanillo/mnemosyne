@@ -165,9 +165,34 @@ const options = {
         AnalyticsUsage: {
           type: 'object',
           properties: {
-            tokenUsage:   { type: 'object' },
+            totalQueries: { type: 'integer' },
+            totalTokens:  { type: 'integer' },
             cacheStats:   { type: 'object' },
-            queueMetrics: { type: 'object' }
+            queueStats:   { type: 'object' },
+            byModel:      { type: 'object' },
+            byDay:        { type: 'object' }
+          }
+        },
+        ApiKey: {
+          type: 'object',
+          properties: {
+            id:         { type: 'string' },
+            name:       { type: 'string' },
+            keyPreview: { type: 'string', description: 'Masked key showing first 8 and last 4 characters' },
+            created:    { type: 'string', format: 'date-time' },
+            lastUsed:   { type: 'string', format: 'date-time', nullable: true },
+            active:     { type: 'boolean' }
+          }
+        },
+        ApiKeyFull: {
+          type: 'object',
+          properties: {
+            id:      { type: 'string' },
+            key:     { type: 'string', description: 'Full API key value' },
+            name:    { type: 'string' },
+            created: { type: 'string', format: 'date-time' },
+            lastUsed:{ type: 'string', format: 'date-time', nullable: true },
+            active:  { type: 'boolean' }
           }
         },
         LocalModelCheckResponse: {
@@ -204,7 +229,7 @@ const options = {
         }
       }
     },
-    security: [{ SessionToken: [] }],
+    security: [{ ApiKeyAuth: [] }, { SessionToken: [] }],
     tags: [
       { name: 'Auth',      description: 'Authentication' },
       { name: 'Query',     description: 'RAG queries' },
@@ -374,6 +399,7 @@ const options = {
         get: {
           tags: ['Query'],
           summary: 'See raw similarity scores for a query (no LLM call)',
+          security: [{ ApiKeyAuth: [] }, { SessionToken: [] }],
           parameters: [{ name: 'q', in: 'query', required: true, schema: { type: 'string' } }],
           responses: {
             200: {
@@ -400,6 +426,7 @@ const options = {
         get: {
           tags: ['Query'],
           summary: 'Test each pipeline step individually (Ollama → embed → ChromaDB → OpenRouter)',
+          security: [{ ApiKeyAuth: [] }, { SessionToken: [] }],
           parameters: [{ name: 'q', in: 'query', schema: { type: 'string', example: 'hello' } }],
           responses: {
             200: { description: 'All steps passing' },
@@ -1226,6 +1253,126 @@ const options = {
                 }
               }
             }
+          }
+        }
+      },
+
+      // ── API KEYS ───────────────────────────────────────────────────────
+      '/api-keys': {
+        get: {
+          tags: ['API Keys'],
+          summary: 'List all API keys',
+          responses: {
+            200: {
+              description: 'List of API keys',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      keys: {
+                        type: 'array',
+                        items: { $ref: '#/components/schemas/ApiKey' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        post: {
+          tags: ['API Keys'],
+          summary: 'Create a new API key',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['name'],
+                  properties: {
+                    name: { type: 'string', description: 'Human-readable name for the API key' }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            201: {
+              description: 'API key created',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      key: { $ref: '#/components/schemas/ApiKeyFull' }
+                    }
+                  }
+                }
+              }
+            },
+            400: { description: 'Invalid request' }
+          }
+        }
+      },
+      '/api-keys/{id}': {
+        delete: {
+          tags: ['API Keys'],
+          summary: 'Delete an API key',
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            description: 'API key ID'
+          }],
+          responses: {
+            200: {
+              description: 'API key deleted',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      message: { type: 'string' },
+                      key: { $ref: '#/components/schemas/ApiKey' }
+                    }
+                  }
+                }
+              }
+            },
+            404: { description: 'API key not found' }
+          }
+        }
+      },
+      '/api-keys/{id}/toggle': {
+        post: {
+          tags: ['API Keys'],
+          summary: 'Toggle API key active/inactive status',
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            description: 'API key ID'
+          }],
+          responses: {
+            200: {
+              description: 'API key status toggled',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      message: { type: 'string' },
+                      key: { $ref: '#/components/schemas/ApiKey' }
+                    }
+                  }
+                }
+              }
+            },
+            404: { description: 'API key not found' }
           }
         }
       }

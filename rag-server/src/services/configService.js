@@ -127,6 +127,12 @@ class ConfigService {
     return !!this.load().openrouterApiKey;
   }
 
+  // Check if any RAG API keys are configured (delegates to apiKeyService)
+  hasRagApiKeys() {
+    const apiKeyService = require('./apiKeyService');
+    return apiKeyService.hasKeys();
+  }
+
   // ── Token usage tracking ─────────────────────────────────────────────
   trackTokens(usage, model) {
     if (!usage) return;
