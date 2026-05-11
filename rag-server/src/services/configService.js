@@ -18,7 +18,8 @@ const DEFAULTS = {
   chunkSize:           parseInt(process.env.CHUNK_SIZE || '500'),
   chunkOverlap:        parseInt(process.env.CHUNK_OVERLAP || '50'),
   cacheTtl:            parseInt(process.env.CACHE_TTL || '3600'),
-  maxTokens:           parseInt(process.env.MAX_TOKENS || '8000')
+  maxTokens:           parseInt(process.env.MAX_TOKENS || '8000'),
+  ocrEnabled:          process.env.OCR_ENABLED !== 'false'  // Default to true unless explicitly set to false
 };
 
 // In-memory token usage tracking (resets on server restart)
