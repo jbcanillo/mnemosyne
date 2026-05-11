@@ -193,8 +193,8 @@ router.delete('/usage', eitherAuth, (req, res) => {
   res.json({ message: 'Token usage stats reset.' });
 });
 
-// ── Healthcheck (public — no authentication required) ──────────────────
-router.get('/healthcheck', statusLimiter, async (req, res) => {
+// ── Healthcheck (public) ──────────────────────────────────────────────
+router.get('/healthcheck', eitherAuth, statusLimiter, async (req, res) => {
   const llm = require('./services/llmService');
   const vs  = require('./services/vectorStore');
   const cfg = require('./services/configService');

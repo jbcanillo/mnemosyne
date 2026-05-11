@@ -35,9 +35,8 @@ app.use(helmet({
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'X-API-Key', 'Authorization', 'X-Session-Token'],
-  credentials: true
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'X-API-Key', 'Authorization', 'X-Session-Token']
 }));
 
 app.use(express.json({ limit: '10mb' }));
