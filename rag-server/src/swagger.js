@@ -10,7 +10,7 @@ const options = {
       description: 'REST API for the Mnemosyne RAG Knowledge Base system. All endpoints except `/health` and `POST /api/auth/login` require authentication via `X-API-Key` (server-to-server) or `X-Session-Token` (UI/browser).',
       contact:     { name: 'Mnemosyne RAG' }
     },
-    servers: [{ url: '/api', description: 'RAG API' }],
+    servers: [{ url: process.env.APP_URL ? process.env.APP_URL + '/api' : '/api', description: 'RAG API' }],
     components: {
       securitySchemes: {
         ApiKeyAuth:   { type: 'apiKey', in: 'header', name: 'X-API-Key',      description: 'Static API key for server-to-server calls' },

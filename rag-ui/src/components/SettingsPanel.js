@@ -54,6 +54,7 @@ export default function SettingsPanel({ onRefresh }) {
   const [cacheTtl, setCacheTtl] = useState("");
   const [chunkSize, setChunkSize] = useState("");
   const [chunkOvlp, setChunkOvlp] = useState("");
+  const [ocrEnabled, setOcrEnabled] = useState(true);
 
   // Data management state
   const [clearing, setClearing] = useState(false);
@@ -93,6 +94,7 @@ RULES:
       setCacheTtl(String(s.cacheTtl ?? "3600"));
       setChunkSize(String(s.chunkSize ?? "500"));
       setChunkOvlp(String(s.chunkOverlap ?? "50"));
+      setOcrEnabled(s.ocrEnabled !== false); // Default to true
     } catch (err) {
       toast.error("Failed to load settings: " + err.message);
     } finally {
@@ -154,6 +156,7 @@ RULES:
         cacheTtl: parseInt(cacheTtl),
         chunkSize: parseInt(chunkSize),
         chunkOverlap: parseInt(chunkOvlp),
+        ocrEnabled: ocrEnabled,
       };
       if (apiKey.trim()) {
         updates.openrouterApiKey = apiKey.trim();
@@ -768,6 +771,26 @@ RULES:
                 <div className="form-hint">
                   Overlap between chunks. Default: 50
                 </div>
+              </div>
+            </div>
+
+{/* OCR Settings */}
+            <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <label className="form-label" style={{ margin: 0 }}>Enable OCR for Scanned Documents</label>
+                <label className="toggle-wrap">
+                  <span className="toggle-label"></span>
+                  <input
+                    type="checkbox"
+                    checked={ocrEnabled}
+                    onChange={(e) => setOcrEnabled(e.target.checked)}
+                    className="toggle-input"
+                  />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+              <div className="form-hint">
+                When enabled, OCR will extract text from scanned PDFs and images. Disable to skip OCR processing and save resources.
               </div>
             </div>
 

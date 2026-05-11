@@ -132,6 +132,8 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
   // Determine current engine from info provider
   const engine = info?.models?.provider === 'Local Ollama' ? 'local' : 'openrouter';
 
+  const docsUrl = process.env.REACT_APP_API_DOCS || 'http://localhost:3001/docs';
+
   // Cost estimate: ~$0.0005 per 1K tokens (rough average for free models)
   const estimatedCost = tu ? ((tu.totalTokens / 1000) * 0.0005).toFixed(4) : '0.0000';
 
@@ -143,7 +145,7 @@ export default function StatusPanel({ info, serverOnline, onRefresh }) {
             {hcLoading ? <span className="spinner-xs" /> : <HeartPulse size={12} />} Healthcheck
           </button>
           <button className="btn btn-ghost btn-xs">
-            <a href="http://localhost:3001/docs" target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <a href={docsUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
               <FolderOpen size={12} /> API Docs
             </a>
           </button>
