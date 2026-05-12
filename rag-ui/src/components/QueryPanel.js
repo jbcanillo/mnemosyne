@@ -987,7 +987,7 @@ export default function QueryPanel({
                   handleQuery();
                 }
               }}
-              placeholder="Ask a question about your knowledge base…"
+              placeholder="Type your inquiry here..."
               rows={2}
               disabled={loading}
             />
@@ -1001,7 +1001,6 @@ export default function QueryPanel({
           </div>
           <div className="input-hint">
             <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for newline
-            {asyncMode && <span className="async-hint"> · Async mode ON</span>}
           </div>
         </form>
       </div>
