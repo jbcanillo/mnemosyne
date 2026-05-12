@@ -1381,13 +1381,13 @@
   display: flex; 
   align-items: center; 
   justify-content: center;
-  width: 80px; 
-  height: 80px;
+  width: 50px; 
+  height: 50px;
 }
 
 .login-loading-img {
-  width: 150%;
-  height: 150%;
+  width: 180%;
+  height: 180%;
   object-fit: contain;
   filter: drop-shadow(0 0 20px rgba(124,92,252,0.4));
   animation: logoFloat 3s ease-in-out infinite;
@@ -1591,10 +1591,10 @@
 }
 
 .conv-sidebar-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text);
-  padding: 9px 9px;
+  padding: 7.7px 7.7px;
 }
 
 .conv-sidebar-content {

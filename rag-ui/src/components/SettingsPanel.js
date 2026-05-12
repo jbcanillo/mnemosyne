@@ -53,8 +53,15 @@ export default function SettingsPanel({ onRefresh }) {
   const [topK, setTopK] = useState("");
   const [cacheTtl, setCacheTtl] = useState("");
   const [chunkSize, setChunkSize] = useState("");
-  const [chunkOvlp, setChunkOvlp] = useState("");
-  const [ocrEnabled, setOcrEnabled] = useState(true);
+   const [chunkOvlp, setChunkOvlp] = useState("");
+   const [ocrEnabled, setOcrEnabled] = useState(true);
+   const [maxToken, setMaxToken] = useState("");
+   const [rateLimitMax, setRateLimitMax] = useState("");
+   const [queryRateLimit, setQueryRateLimit] = useState("");
+   const [queryConcurrency, setQueryConcurrency] = useState("");
+   const [maxFileSize, setMaxFileSize] = useState("");
+   const [ocrMinTextLength, setOcrMinTextLength] = useState("");
+   const [ocrLang, setOcrLang] = useState("");
 
   // Data management state
   const [clearing, setClearing] = useState(false);
@@ -92,9 +99,16 @@ RULES:
       setMinScore(String(s.minRelevanceScore ?? "0.15"));
       setTopK(String(s.topK ?? "5"));
       setCacheTtl(String(s.cacheTtl ?? "3600"));
-      setChunkSize(String(s.chunkSize ?? "500"));
-      setChunkOvlp(String(s.chunkOverlap ?? "50"));
-      setOcrEnabled(s.ocrEnabled !== false); // Default to true
+       setChunkSize(String(s.chunkSize ?? "500"));
+       setChunkOvlp(String(s.chunkOverlap ?? "50"));
+       setOcrEnabled(s.ocrEnabled !== false); // Default to true
+       setMaxToken(String(s.maxToken ?? "8"));
+       setRateLimitMax(String(s.rateLimitMax ?? "60"));
+       setQueryRateLimit(String(s.queryRateLimit ?? "20"));
+       setQueryConcurrency(String(s.queryConcurrency ?? "3"));
+       setMaxFileSize(String(s.maxFileSize ?? "50"));
+       setOcrMinTextLength(String(s.ocrMinTextLength ?? "10"));
+       setOcrLang(s.ocrLang ?? "eng");
     } catch (err) {
       toast.error("Failed to load settings: " + err.message);
     } finally {
@@ -157,6 +171,13 @@ RULES:
         chunkSize: parseInt(chunkSize),
         chunkOverlap: parseInt(chunkOvlp),
         ocrEnabled: ocrEnabled,
+        maxToken: parseInt(maxToken),
+        rateLimitMax: parseInt(rateLimitMax),
+        queryRateLimit: parseInt(queryRateLimit),
+        queryConcurrency: parseInt(queryConcurrency),
+        maxFileSize: parseInt(maxFileSize),
+        ocrMinTextLength: parseInt(ocrMinTextLength),
+        ocrLang: ocrLang,
       };
       if (apiKey.trim()) {
         updates.openrouterApiKey = apiKey.trim();
@@ -709,6 +730,17 @@ RULES:
             {/* RAG tuning */}
             <div className="form-grid">
               <div className="form-group">
+                <label className="form-label">Max Token</label>
+                <input
+                  className="sp-input"
+                  type="number"
+                  min="1"
+                  value={maxToken}
+                  onChange={(e) => setMaxToken(e.target.value)}
+                />
+                <div className="form-hint">Maximum tokens per response. Default: 8</div>
+              </div>
+              <div className="form-group">
                 <label className="form-label">Min Relevance Score</label>
                 <input
                   className="sp-input"
@@ -772,6 +804,36 @@ RULES:
                   Overlap between chunks. Default: 50
                 </div>
               </div>
+              <div className="form-group">
+                <label className="form-label">Rate Limit Max</label>
+                <input
+                  className="sp-input"
+                  type="number"
+                  value={rateLimitMax}
+                  onChange={(e) => setRateLimitMax(e.target.value)}
+                />
+                <div className="form-hint">Maximum requests per period. Default: 60</div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Query Rate Limit</label>
+                <input
+                  className="sp-input"
+                  type="number"
+                  value={queryRateLimit}
+                  onChange={(e) => setQueryRateLimit(e.target.value)}
+                />
+                <div className="form-hint">Queries per rate limit period. Default: 20</div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Query Concurrency</label>
+                <input
+                  className="sp-input"
+                  type="number"
+                  value={queryConcurrency}
+                  onChange={(e) => setQueryConcurrency(e.target.value)}
+                />
+                <div className="form-hint">Maximum concurrent queries. Default: 3</div>
+              </div>
             </div>
 
 {/* OCR Settings */}
@@ -791,6 +853,39 @@ RULES:
               </div>
               <div className="form-hint">
                 When enabled, OCR will extract text from scanned PDFs and images. Disable to skip OCR processing and save resources.
+              </div>
+              <div className="form-grid" style={{ marginTop: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Max File Size (MB)</label>
+                  <input
+                    className="sp-input"
+                    type="number"
+                    value={maxFileSize}
+                    onChange={(e) => setMaxFileSize(e.target.value)}
+                  />
+                  <div className="form-hint">Maximum file size for uploads. Default: 50</div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">OCR Min Text Length</label>
+                  <input
+                    className="sp-input"
+                    type="number"
+                    value={ocrMinTextLength}
+                    onChange={(e) => setOcrMinTextLength(e.target.value)}
+                  />
+                  <div className="form-hint">Minimum text length for OCR processing. Default: 10</div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">OCR Language</label>
+                  <input
+                    className="sp-input"
+                    type="text"
+                    value={ocrLang}
+                    onChange={(e) => setOcrLang(e.target.value)}
+                    placeholder="eng"
+                  />
+                  <div className="form-hint">Language code for OCR (e.g., eng). Default: eng</div>
+                </div>
               </div>
             </div>
 
