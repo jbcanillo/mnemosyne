@@ -6,6 +6,7 @@ const vectorStore    = require('../services/vectorStore');
 const llmService     = require('../services/llmService');
 const queueService   = require('../services/queueService');
 const { logger }     = require('../utils/logger');
+const configService  = require('../services/configService');
 
 const DOCUMENTS_DIR = process.env.DOCUMENTS_DIR || '/data/documents';
 
@@ -109,10 +110,18 @@ exports.upload = async (req, res) => {
 
   // Parse tags from form data (comma-separated string)
   const tagsRaw = req.body.tags || '';
-  const tags = tagsRaw
+  let tags = tagsRaw
     .split(',')
     .map(t => t.trim().toLowerCase())
     .filter(t => t.length > 0);
+
+  // Add sensitivity tag if enabled and specified
+  if (configService.get('enableDocumentSensitivity')) {
+    const sensitivity = req.body.sensitivity || 'public'; // default to public
+    if (sensitivity !== 'public') {
+      tags.push(`sensitivity:${sensitivity}`);
+    }
+  }
 
   const documentId = uuidv4();
 

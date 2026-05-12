@@ -16,7 +16,7 @@ import {
   Database,
   HardDrive,
   Cloud,
-  Shield
+  Shield,
 } from "lucide-react";
 import { ragApi } from "../api";
 
@@ -53,15 +53,15 @@ export default function SettingsPanel({ onRefresh }) {
   const [topK, setTopK] = useState("");
   const [cacheTtl, setCacheTtl] = useState("");
   const [chunkSize, setChunkSize] = useState("");
-   const [chunkOvlp, setChunkOvlp] = useState("");
-   const [ocrEnabled, setOcrEnabled] = useState(true);
-   const [maxToken, setMaxToken] = useState("");
-   const [rateLimitMax, setRateLimitMax] = useState("");
-   const [queryRateLimit, setQueryRateLimit] = useState("");
-   const [queryConcurrency, setQueryConcurrency] = useState("");
-   const [maxFileSize, setMaxFileSize] = useState("");
-   const [ocrMinTextLength, setOcrMinTextLength] = useState("");
-   const [ocrLang, setOcrLang] = useState("");
+  const [chunkOvlp, setChunkOvlp] = useState("");
+  const [ocrEnabled, setOcrEnabled] = useState(true);
+  const [maxTokens, setMaxTokens] = useState("");
+  const [rateLimitMax, setRateLimitMax] = useState("");
+  const [queryRateLimit, setQueryRateLimit] = useState("");
+  const [queryConcurrency, setQueryConcurrency] = useState("");
+  const [maxFileSize, setMaxFileSize] = useState("");
+  const [ocrMinTextLength, setOcrMinTextLength] = useState("");
+  const [ocrLang, setOcrLang] = useState("");
 
   // Data management state
   const [clearing, setClearing] = useState(false);
@@ -99,16 +99,16 @@ RULES:
       setMinScore(String(s.minRelevanceScore ?? "0.15"));
       setTopK(String(s.topK ?? "5"));
       setCacheTtl(String(s.cacheTtl ?? "3600"));
-       setChunkSize(String(s.chunkSize ?? "500"));
-       setChunkOvlp(String(s.chunkOverlap ?? "50"));
-       setOcrEnabled(s.ocrEnabled !== false); // Default to true
-       setMaxToken(String(s.maxToken ?? "8"));
-       setRateLimitMax(String(s.rateLimitMax ?? "60"));
-       setQueryRateLimit(String(s.queryRateLimit ?? "20"));
-       setQueryConcurrency(String(s.queryConcurrency ?? "3"));
-       setMaxFileSize(String(s.maxFileSize ?? "50"));
-       setOcrMinTextLength(String(s.ocrMinTextLength ?? "10"));
-       setOcrLang(s.ocrLang ?? "eng");
+      setChunkSize(String(s.chunkSize ?? "500"));
+      setChunkOvlp(String(s.chunkOverlap ?? "50"));
+      setOcrEnabled(s.ocrEnabled !== false); // Default to true
+      setMaxTokens(String(s.maxTokens ?? "8000"));
+      setRateLimitMax(String(s.rateLimitMax ?? "60"));
+      setQueryRateLimit(String(s.queryRateLimit ?? "20"));
+      setQueryConcurrency(String(s.queryConcurrency ?? "3"));
+      setMaxFileSize(String(s.maxFileSize ?? "50"));
+      setOcrMinTextLength(String(s.ocrMinTextLength ?? "10"));
+      setOcrLang(s.ocrLang ?? "eng");
     } catch (err) {
       toast.error("Failed to load settings: " + err.message);
     } finally {
@@ -171,7 +171,7 @@ RULES:
         chunkSize: parseInt(chunkSize),
         chunkOverlap: parseInt(chunkOvlp),
         ocrEnabled: ocrEnabled,
-        maxToken: parseInt(maxToken),
+        maxTokens: parseInt(maxTokens),
         rateLimitMax: parseInt(rateLimitMax),
         queryRateLimit: parseInt(queryRateLimit),
         queryConcurrency: parseInt(queryConcurrency),
@@ -735,10 +735,12 @@ RULES:
                   className="sp-input"
                   type="number"
                   min="1"
-                  value={maxToken}
-                  onChange={(e) => setMaxToken(e.target.value)}
+                  value={maxTokens}
+                  onChange={(e) => setMaxTokens(e.target.value)}
                 />
-                <div className="form-hint">Maximum tokens per response. Default: 8</div>
+                <div className="form-hint">
+                  Maximum tokens per response. Default: 8000
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Min Relevance Score</label>
@@ -812,7 +814,9 @@ RULES:
                   value={rateLimitMax}
                   onChange={(e) => setRateLimitMax(e.target.value)}
                 />
-                <div className="form-hint">Maximum requests per period. Default: 60</div>
+                <div className="form-hint">
+                  Maximum requests per period. Default: 60
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Query Rate Limit</label>
@@ -822,7 +826,9 @@ RULES:
                   value={queryRateLimit}
                   onChange={(e) => setQueryRateLimit(e.target.value)}
                 />
-                <div className="form-hint">Queries per rate limit period. Default: 20</div>
+                <div className="form-hint">
+                  Queries per rate limit period. Default: 20
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Query Concurrency</label>
@@ -832,14 +838,31 @@ RULES:
                   value={queryConcurrency}
                   onChange={(e) => setQueryConcurrency(e.target.value)}
                 />
-                <div className="form-hint">Maximum concurrent queries. Default: 3</div>
+                <div className="form-hint">
+                  Maximum concurrent queries. Default: 3
+                </div>
               </div>
             </div>
 
-{/* OCR Settings */}
-            <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <label className="form-label" style={{ margin: 0 }}>Enable OCR for Scanned Documents</label>
+            {/* OCR Settings */}
+            <div
+              style={{
+                marginTop: "20px",
+                paddingTop: "20px",
+                borderTop: "1px solid var(--border)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "12px",
+                }}
+              >
+                <label className="form-label" style={{ margin: 0 }}>
+                  Enable OCR for Scanned Documents
+                </label>
                 <label className="toggle-wrap">
                   <span className="toggle-label"></span>
                   <input
@@ -852,9 +875,10 @@ RULES:
                 </label>
               </div>
               <div className="form-hint">
-                When enabled, OCR will extract text from scanned PDFs and images. Disable to skip OCR processing and save resources.
+                When enabled, OCR will extract text from scanned PDFs and
+                images. Disable to skip OCR processing and save resources.
               </div>
-              <div className="form-grid" style={{ marginTop: '12px' }}>
+              <div className="form-grid" style={{ marginTop: "12px" }}>
                 <div className="form-group">
                   <label className="form-label">Max File Size (MB)</label>
                   <input
@@ -863,7 +887,9 @@ RULES:
                     value={maxFileSize}
                     onChange={(e) => setMaxFileSize(e.target.value)}
                   />
-                  <div className="form-hint">Maximum file size for uploads. Default: 50</div>
+                  <div className="form-hint">
+                    Maximum file size for uploads. Default: 50
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">OCR Min Text Length</label>
@@ -873,7 +899,9 @@ RULES:
                     value={ocrMinTextLength}
                     onChange={(e) => setOcrMinTextLength(e.target.value)}
                   />
-                  <div className="form-hint">Minimum text length for OCR processing. Default: 10</div>
+                  <div className="form-hint">
+                    Minimum text length for OCR processing. Default: 10
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">OCR Language</label>
@@ -884,7 +912,9 @@ RULES:
                     onChange={(e) => setOcrLang(e.target.value)}
                     placeholder="eng"
                   />
-                  <div className="form-hint">Language code for OCR (e.g., eng). Default: eng</div>
+                  <div className="form-hint">
+                    Language code for OCR (e.g., eng). Default: eng
+                  </div>
                 </div>
               </div>
             </div>
@@ -1090,121 +1120,118 @@ RULES:
             </div>
           </div>
         </div>
-
-        {/* ── Data Management ── */}
-        <div className="sp-card">
-          <div className="sp-card-header">
-            <div className="sp-card-title">
-              <span className="sp-card-icon">
-                <FolderOpen size={16} />
-              </span>
-              Data Management
-            </div>
+      </div>
+      {/* ── Data Management ── */}
+      <div className="sp-card">
+        <div className="sp-card-header">
+          <div className="sp-card-title">
+            <span className="sp-card-icon">
+              <FolderOpen size={16} />
+            </span>
+            Data Management
           </div>
+        </div>
 
-          <div className="sp-card-body">
-            <div className="mgmt-grid">
-              <div className="mgmt-card">
-                <div className="mgmt-card-title">
-                  <Database size={14} /> Query Cache
-                </div>
-                <div className="mgmt-card-detail">
-                  Clears cached query results
-                </div>
+        <div className="sp-card-body">
+          <div className="mgmt-grid">
+            <div className="mgmt-card">
+              <div className="mgmt-card-title">
+                <Database size={14} /> Query Cache
+              </div>
+              <div className="mgmt-card-detail">
+                Clears cached query results
+              </div>
+              <button
+                className="btn btn-danger btn-xs"
+                onClick={clearCache}
+                disabled={clearing}
+              >
+                {clearing ? (
+                  "Clearing…"
+                ) : (
+                  <>
+                    <Trash2 size={12} /> Clear Cache
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="mgmt-card">
+              <div className="mgmt-card-title">
+                <Shield size={14} /> Vector Store
+              </div>
+              <div className="mgmt-card-detail">Resets all indexed chunks</div>
+              <button
+                className="btn btn-danger btn-xs"
+                onClick={resetVectorStore}
+                disabled={resetting}
+              >
+                {resetting ? (
+                  "Resetting…"
+                ) : (
+                  <>
+                    <Shield size={12} /> Reset Collection
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="mgmt-card mgmt-card-full">
+              <div className="mgmt-card-title">
+                <Download size={14} /> Backup & Restore
+              </div>
+              <div className="mgmt-card-detail">Knowledge base backup</div>
+              <div className="mgmt-actions">
                 <button
-                  className="btn btn-danger btn-xs"
-                  onClick={clearCache}
-                  disabled={clearing}
+                  className="btn btn-primary"
+                  onClick={createBackup}
+                  disabled={!!backupProgress || restoring}
                 >
-                  {clearing ? (
-                    "Clearing…"
+                  {backupProgress ? (
+                    "Creating..."
                   ) : (
                     <>
-                      <Trash2 size={12} /> Clear Cache
+                      <Download size={12} /> Create Backup
                     </>
                   )}
                 </button>
               </div>
-              <div className="mgmt-card">
-                <div className="mgmt-card-title">
-                  <Shield size={14} /> Vector Store
-                </div>
-                <div className="mgmt-card-detail">
-                  Resets all indexed chunks
-                </div>
-                <button
-                  className="btn btn-danger btn-xs"
-                  onClick={resetVectorStore}
-                  disabled={resetting}
-                >
-                  {resetting ? (
-                    "Resetting…"
-                  ) : (
-                    <>
-                      <Shield size={12} /> Reset Collection
-                    </>
-                  )}
-                </button>
-              </div>
-              <div className="mgmt-card mgmt-card-full">
-                <div className="mgmt-card-title">
-                  <Download size={14} /> Backup & Restore
-                </div>
-                <div className="mgmt-card-detail">Knowledge base backup</div>
-                <div className="mgmt-actions">
-                  <button
-                    className="btn btn-primary"
-                    onClick={createBackup}
-                    disabled={!!backupProgress || restoring}
-                  >
-                    {backupProgress ? (
-                      "Creating..."
-                    ) : (
-                      <>
-                        <Download size={12} /> Create Backup
-                      </>
-                    )}
-                  </button>
-                </div>
-                {backups.length > 0 && (
-                  <div className="backup-list">
-                    <div className="backup-list-title">Available:</div>
-                    {backups.map((b, i) => (
-                      <div key={i} className="backup-item">
-                        <div className="backup-info">
-                          <div className="backup-name">{b.filename}</div>
-                          <div className="backup-meta">
-                            {(b.size / 1024 / 1024).toFixed(1)} MB ·{" "}
-                            {new Date(b.created).toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="backup-actions">
-                          <button
-                            className="btn btn-ghost btn-xs"
-                            onClick={() => restoreBackup(b.filename)}
-                            disabled={restoring}
-                          >
-                            {restoring ? (
-                              "Restoring…"
-                            ) : (
-                              <>
-                                <Upload size={12} /> Restore
-                              </>
-                            )}
-                          </button>
-                          <button
-                            className="btn btn-danger btn-xs"
-                            onClick={() => deleteBackup(b.filename)}
-                            title="Delete backup"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+              {backups.length > 0 && (
+                <div className="backup-list">
+                  <div className="backup-list-title">Available:</div>
+                  {backups.map((b, i) => (
+                    <div key={i} className="backup-item">
+                      <div className="backup-info">
+                        <div className="backup-name">{b.filename}</div>
+                        <div className="backup-meta">
+                          {(b.size / 1024 / 1024).toFixed(1)} MB ·{" "}
+                          {new Date(b.created).toLocaleString()}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      <div className="backup-actions">
+                        <button
+                          className="btn btn-ghost btn-xs"
+                          onClick={() => restoreBackup(b.filename)}
+                          disabled={restoring}
+                        >
+                          {restoring ? (
+                            "Restoring…"
+                          ) : (
+                            <>
+                              <Upload size={12} /> Restore
+                            </>
+                          )}
+                        </button>
+                        <button
+                          className="btn btn-danger btn-xs"
+                          onClick={() => deleteBackup(b.filename)}
+                          title="Delete backup"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Key, Shield, Plus, Trash2, Eye, EyeOff, Copy, Check, RotateCw } from 'lucide-react';
+import { Key, Lock, Plus, Trash2, Eye, EyeOff, Copy, Check, RotateCw } from 'lucide-react';
 import { ragApi } from '../api';
 
 export default function ApiKeysPanel() {
@@ -90,7 +90,7 @@ export default function ApiKeysPanel() {
       <div className="sp-card">
         <div className="sp-card-header">
           <div className="sp-card-title">
-            <span className="sp-card-icon"><Shield size={16} /></span>
+            <span className="sp-card-icon"><Lock size={16} /></span>
             API Key Management
           </div>
         </div>

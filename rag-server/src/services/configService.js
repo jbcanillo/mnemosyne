@@ -10,7 +10,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'settings.json');
 const DEFAULTS = {
   llmEngine:            '',           // '', 'openrouter', or 'local' — '' = auto-detect
   systemPrompt:         '',           // Custom system prompt for LLM (empty = use built-in default)
-  openrouterApiKey:     '',
+  openrouterApiKey:     process.env.OPENROUTER_API_KEY || '',
   openrouterModel:      process.env.OPENROUTER_MODEL || 'stepfun/step-3.5-flash:free',
   localLlmModel:        process.env.LOCAL_LLM_MODEL  || 'llama3.2',
   minRelevanceScore:   parseFloat(process.env.MIN_RELEVANCE_SCORE || '0.15'),
@@ -18,8 +18,20 @@ const DEFAULTS = {
   chunkSize:           parseInt(process.env.CHUNK_SIZE || '500'),
   chunkOverlap:        parseInt(process.env.CHUNK_OVERLAP || '50'),
   cacheTtl:            parseInt(process.env.CACHE_TTL || '3600'),
-  maxTokens:           parseInt(process.env.MAX_TOKENS || '8000'),
-  ocrEnabled:          process.env.OCR_ENABLED !== 'false'  // Default to true unless explicitly set to false
+  maxTokens:           parseInt(process.env.MAX_TOKEN || '8000'),
+  rateLimitMax:        parseInt(process.env.RATE_LIMIT_MAX || '120'),
+  queryRateLimit:     parseInt(process.env.QUERY_RATE_LIMIT || '150'),
+  queryConcurrency:   parseInt(process.env.QUERY_CONCURRENCY || '10'),
+  maxFileSize:        parseInt(process.env.MAX_FILE_SIZE || '50'),
+  ocrMinTextLength:   parseInt(process.env.OCR_MIN_TEXT_LENGTH || '10'),
+  ocrLang:            process.env.OCR_LANG || 'eng',
+  ocrEnabled:         process.env.OCR_ENABLED !== 'false',  // Default to true unless explicitly set to false
+  // Guardrails toggles - configurable via .env
+  enableInputValidation: process.env.ENABLE_INPUT_VALIDATION !== 'false',
+  enablePromptHardening: process.env.ENABLE_PROMPT_HARDENING !== 'false',
+  enableOutputFiltering: process.env.ENABLE_OUTPUT_FILTERING !== 'false',
+  enableEnhancedLogging: process.env.ENABLE_ENHANCED_LOGGING !== 'false',
+  enableDocumentSensitivity: process.env.ENABLE_DOCUMENT_SENSITIVITY !== 'false'
 };
 
 // In-memory token usage tracking (resets on server restart)
