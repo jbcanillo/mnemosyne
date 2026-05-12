@@ -41,7 +41,7 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 | **Vector DB** | ChromaDB | Chunk storage and cosine similarity search |
 | **Cache / Queue** | Redis + Bull | Query caching, async job queue |
 | **API Server** | Node.js + Express | REST API, auth, rate limiting |
-| **Admin UI** | React | Document management, query testing, live model switching |
+| **Admin UI** | React | Document management, query testing, live model switching, guardrails, and API key management |
 
 ---
 
@@ -67,6 +67,36 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 ### Public endpoints (no auth required)
 - `GET /health`
 - `POST /api/auth/login`
+
+---
+
+## Guardrails
+
+Mnemosyne includes configurable security features designed for PDPA compliance and to prevent jailbreak attacks. These guardrails can be toggled in the **Guardrails** tab of the Admin UI or configured via environment variables.
+
+### Security Features
+
+- **Input Validation**: Validates user queries to prevent malicious or inappropriate content
+- **Prompt Hardening**: Strengthens prompts to reduce susceptibility to prompt injection attacks
+- **Output Filtering**: Filters generated responses to remove sensitive or harmful content
+- **Enhanced Logging**: Provides detailed logging for security monitoring and compliance
+- **Document Sensitivity**: Applies additional checks on uploaded documents for sensitive information
+
+### Configuration
+
+Set these features in `.env`:
+
+```env
+# Security features for PDPA compliance and jailbreak prevention
+# Set to 'false' to disable, default is 'true'
+ENABLE_INPUT_VALIDATION=true
+ENABLE_PROMPT_HARDENING=true
+ENABLE_OUTPUT_FILTERING=true
+ENABLE_ENHANCED_LOGGING=true
+ENABLE_DOCUMENT_SENSITIVITY=true
+```
+
+All guardrails are enabled by default. Disable specific features as needed for your deployment requirements.
 
 ---
 
@@ -108,6 +138,8 @@ docker logs mnemosyne-ollama -f
 ### 3 — Open the Admin UI
 
 **http://localhost:3002** → login with your `ADMIN_USERNAME` / `ADMIN_PASSWORD`
+
+The Admin UI provides tabs for Knowledge Base management, Query testing, System Status monitoring, API Keys, Guardrails configuration, and general Settings.
 
 ### 4 — Upload documents
 
@@ -196,6 +228,8 @@ For local Ollama models, set `LOCAL_LLM_MODEL` in `.env` (e.g., `llama3.2`, `mis
 ---
 
 ## REST API Reference
+
+Interactive API documentation is available at `http://localhost:3001/docs` (requires session token for authentication in the UI).
 
 All endpoints require auth except `/health` and `POST /api/auth/login`.
 

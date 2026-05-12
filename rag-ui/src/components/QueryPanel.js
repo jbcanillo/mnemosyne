@@ -88,6 +88,12 @@ export default function QueryPanel({
     loadTags();
   }, []);
 
+  // Auto refresh tags every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(loadTags, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   async function loadTags() {
     try {
       const data = await ragApi.getTags();

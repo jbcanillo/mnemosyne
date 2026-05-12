@@ -3,6 +3,7 @@ const cacheService  = require('../services/cacheService');
 const vectorStore   = require('../services/vectorStore');
 const llmService    = require('../services/llmService');
 const { logger }    = require('../utils/logger');
+const configService = require('../services/configService');
 
 // Lower default threshold — nomic-embed-text with cosine similarity
 // typically scores 0.3–0.7 for relevant content. 0.15 is a safe floor
@@ -113,6 +114,26 @@ exports.query = async (req, res) => {
 
   const trimmedQuery = query.trim().substring(0, 1000);
 
+  // Input validation: detect potential jailbreak attempts (if enabled)
+  if (configService.get('enableInputValidation')) {
+    const injectionPatterns = [
+      /ignore\s+(previous|all|these)\s+instructions/i,
+      /system\s+prompt[:\s]/i,
+      /you\s+are\s+now\s+/i,
+      /override\s+/i,
+      /bypass\s+/i,
+      /reveal\s+(system|internal|prompt)/i,
+      /admin\s+mode/i,
+      /developer\s+mode/i
+    ];
+
+    const isInjectionAttempt = injectionPatterns.some(pattern => pattern.test(trimmedQuery));
+    if (isInjectionAttempt) {
+      logger.warn(`[Security] Potential jailbreak attempt detected: "${trimmedQuery.substring(0, 100)}"`);
+      return res.status(400).json({ error: 'Query contains invalid content. Please rephrase your question.' });
+    }
+  }
+
   try {
     // Log query details including session/tags from UI
     const tags = options.tags ? `[${options.tags.join(', ')}]` : 'none';
@@ -124,6 +145,9 @@ exports.query = async (req, res) => {
     const cached   = await cacheService.get(cacheKey);
     if (cached) {
       logger.info(`[Query] Cache hit: "${trimmedQuery.substring(0, 50)}"`);
+      if (configService.get('enableEnhancedLogging')) {
+        logger.info(`[Audit] Response served from cache - Length: ${cached.answer?.length || 0} chars`);
+      }
       return res.json({ ...cached, fromCache: true, query: trimmedQuery });
     }
 
@@ -136,6 +160,9 @@ exports.query = async (req, res) => {
     const result = await processRagQuery(trimmedQuery, options);
     await cacheService.set(cacheKey, result);
     logger.info(`[API] Query completed - Results: ${result.relevantChunks} chunks, Sources: ${result.sources?.length || 0}`);
+    if (configService.get('enableEnhancedLogging')) {
+      logger.info(`[Audit] Response generated - Length: ${result.answer?.length || 0} chars, Chunks: ${result.relevantChunks}`);
+    }
     return res.json({ ...result, query: trimmedQuery });
 
   } catch (err) {

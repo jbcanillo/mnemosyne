@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { User, LogOut, MessageSquare, BookOpen, Activity, Settings, Sun, Moon, BarChart3, Shield } from 'lucide-react';
+import { User, LogOut, MessageSquare, BookOpen, Activity, Settings, Sun, Moon, BarChart3, Shield, Key } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import QueryPanel from './components/QueryPanel';
 import DocumentsPanel from './components/DocumentsPanel';
@@ -9,6 +9,7 @@ import AnalyticsPanel from './components/AnalyticsPanel';
 import StatusPanel from './components/StatusPanel';
 import SettingsPanel from './components/SettingsPanel';
 import ApiKeysPanel from './components/ApiKeysPanel';
+import GuardrailsPanel from './components/GuardrailsPanel';
 import { ragApi } from './api';
 import './App.css';
 
@@ -17,7 +18,8 @@ const TABS = [
   { id: 'documents', label: 'Knowledge Base', icon: <BookOpen size={14} /> },
   { id: 'analytics', label: 'Analytics',     icon: <BarChart3 size={14} /> },
   { id: 'status',    label: 'System Status',  icon: <Activity size={14} /> },
-  { id: 'apikeys',   label: 'API Keys',      icon: <Shield size={14} /> },
+  { id: 'apikeys',   label: 'API Keys',      icon: <Key size={14} /> },
+  { id: 'guardrails', label: 'Guardrails',   icon: <Shield size={14} /> },
   { id: 'settings',  label: 'Settings',       icon: <Settings size={14} /> },
 ];
 
@@ -184,6 +186,9 @@ function AuthenticatedApp() {
         </div>
         <div style={{ display: activeTab === 'apikeys'   ? 'contents' : 'none' }}>
           <ApiKeysPanel />
+        </div>
+        <div style={{ display: activeTab === 'guardrails' ? 'contents' : 'none' }}>
+          <GuardrailsPanel onRefresh={checkHealth} />
         </div>
       </main>
 
