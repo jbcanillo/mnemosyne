@@ -90,6 +90,7 @@ services:
     environment:
       - ANONYMIZED_TELEMETRY=False
       - ALLOW_RESET=True
+      - CHROMA_SERVER_CORS_ALLOW_ORIGINS=["*"]
     ports:
       - "127.0.0.1:8001:8000"
     # No healthcheck - ChromaDB container is minimal and doesn't have curl/wget/python
