@@ -389,38 +389,43 @@ Answer based ONLY on the context above:`;
     return this.embeddingReady && this.generationReady;
   }
 
-  // ── Output filtering for security ─────────────────────────────────────────
-  _filterOutput(answer, query) {
-    let filteredAnswer = answer;
+// ── Output filtering for security ─────────────────────────────────────────
+   _filterOutput(answer, query) {
+     let filteredAnswer = answer;
 
-    // Simple filters for potential jailbreak indicators
-    const suspiciousPatterns = [
-      { pattern: /system\s+prompt/i, replacement: '[redacted system info]' },
-      { pattern: /internal\s+(instructions?|prompt)/i, replacement: '[redacted internal info]' },
-      { pattern: /override/i, replacement: '[redacted]' },
-      { pattern: /bypass/i, replacement: '[redacted]' },
-      { pattern: /admin\s+mode/i, replacement: '[redacted]' }
-    ];
+     // Simple filters for potential jailbreak indicators
+     const suspiciousPatterns = [
+       { pattern: /system\s+prompt/i, replacement: '[redacted system info]' },
+       { pattern: /internal\s+(instructions?|prompt)/i, replacement: '[redacted internal info]' },
+       { pattern: /override/i, replacement: '[redacted]' },
+       { pattern: /bypass/i, replacement: '[redacted]' },
+       { pattern: /admin\s+mode/i, replacement: '[redacted]' }
+     ];
 
-    let modified = false;
-    for (const { pattern, replacement } of suspiciousPatterns) {
-      if (pattern.test(filteredAnswer)) {
-        filteredAnswer = filteredAnswer.replace(pattern, replacement);
-        modified = true;
-      }
-    }
+     let modified = false;
+     for (const { pattern, replacement } of suspiciousPatterns) {
+       if (pattern.test(filteredAnswer)) {
+         filteredAnswer = filteredAnswer.replace(pattern, replacement);
+         modified = true;
+       }
+     }
 
-    if (modified) {
-      logger.warn(`[Security] Response redacted for query: "${query.substring(0, 50)}"`);
-    }
+     if (modified) {
+       logger.warn(`[Security] Response redacted for query: "${query.substring(0, 50)}"`);
+       // Increment guardrail counter
+       const cfgObj = cfg().load();
+       cfg().update({
+         outputFiltered: (cfgObj.outputFiltered || 0) + 1
+       });
+     }
 
-    // Check if answer is too long (potential injection success)
-    if (answer.length > 2000) {
-      logger.warn(`[Security] Unusually long response: ${answer.length} chars for query: "${query.substring(0, 50)}"`);
-    }
+     // Check if answer is too long (potential injection success)
+     if (answer.length > 2000) {
+       logger.warn(`[Security] Unusually long response: ${answer.length} chars for query: "${query.substring(0, 50)}"`);
+     }
 
-    return filteredAnswer;
-  }
+     return filteredAnswer;
+   }
 }
 
 module.exports = new LLMService();

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { ragApi } from '../api';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -9,6 +10,7 @@ export default function LoginScreen() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
   const [showPass, setShowPass] = useState(false);
+  const [version, setVersion] = useState('v1.0.0');
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -25,6 +27,12 @@ export default function LoginScreen() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    ragApi.version().then(data => {
+      setVersion(data.version || 'v1.0.0');
+    }).catch(() => {});
+  }, []);
 
   // Show loading state if loading
   if (loading) {
@@ -126,7 +134,7 @@ export default function LoginScreen() {
         </form>
 
        <div className="login-footer">
-          <span>© {new Date().getFullYear()} Mnemosyne</span>
+          <span>© {new Date().getFullYear()} Mnemosyne <span className="version-info">{version}</span></span>
           <span><br /></span>
           <span>Open-Source Self-Hosted AI Knowledge Base with RAG + OCR</span>
           <span><br /></span>

@@ -87,9 +87,9 @@ export default function ApiKeysPanel() {
   return (
     <div className="settings-panel">
       {/* ── Header ── */}
-      <div className="sp-card">
-        <div className="sp-card-header">
-          <div className="sp-card-title">
+      <div className="sp-section">
+        <div className="sp-section-header">
+          <div className="sp-section-title">
             <span className="sp-card-icon"><Lock size={16} /></span>
             API Key Management
           </div>
@@ -168,9 +168,9 @@ export default function ApiKeysPanel() {
       </div>
 
       {/* ── API Keys List ── */}
-      <div className="sp-card">
-        <div className="sp-card-header">
-          <div className="sp-card-title">
+      <div className="sp-section">
+        <div className="sp-section-header">
+          <div className="sp-section-title">
             <span className="sp-card-icon"><Key size={16} /></span>
             Existing API Keys ({apiKeys.length})
           </div>

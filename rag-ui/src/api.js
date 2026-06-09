@@ -38,6 +38,9 @@ api.interceptors.response.use(
 );
 
 export const ragApi = {
+  // ── Version ───────────────────────────────────────────────────────────────
+  version: () => axios.get(`${BASE_URL.replace('/api', '')}/version`).then(r => r.data),
+
   // ── Auth ──────────────────────────────────────────────────────────
   login: (username, password) =>
     api.post('/auth/login', { username, password }),

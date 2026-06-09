@@ -8,7 +8,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'settings.json');
 
 // Default values — used when no config file exists yet
 const DEFAULTS = {
-  llmEngine:            '',           // '', 'openrouter', or 'local' — '' = auto-detect
+  llmEngine:            '',           // '', 'openrouter', or 'local' - '' = auto-detect
   systemPrompt:         '',           // Custom system prompt for LLM (empty = use built-in default)
   openrouterApiKey:     process.env.OPENROUTER_API_KEY || '',
   openrouterModel:      process.env.OPENROUTER_MODEL || 'stepfun/step-3.5-flash:free',
@@ -26,12 +26,12 @@ const DEFAULTS = {
   ocrMinTextLength:   parseInt(process.env.OCR_MIN_TEXT_LENGTH || '10'),
   ocrLang:            process.env.OCR_LANG || 'eng',
   ocrEnabled:         process.env.OCR_ENABLED !== 'false',  // Default to true unless explicitly set to false
-  // Guardrails toggles - configurable via .env
-  enableInputValidation: process.env.ENABLE_INPUT_VALIDATION !== 'false',
-  enablePromptHardening: process.env.ENABLE_PROMPT_HARDENING !== 'false',
-  enableOutputFiltering: process.env.ENABLE_OUTPUT_FILTERING !== 'false',
-  enableEnhancedLogging: process.env.ENABLE_ENHANCED_LOGGING !== 'false',
-  enableDocumentSensitivity: process.env.ENABLE_DOCUMENT_SENSITIVITY !== 'false'
+  // Guardrail metrics counters
+  inputValidationBlocked: 0,
+  outputFiltered: 0,
+  queriesFiltered: 0,
+  // Versioning
+  version: process.env.MNEMOSYNE_VERSION || 'v1.0.0'  // ✅ Version from env
 };
 
 // In-memory token usage tracking (resets on server restart)

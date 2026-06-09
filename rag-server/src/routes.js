@@ -179,11 +179,38 @@ router.post('/api-keys/:id/toggle', eitherAuth, async (req, res) => {
 router.get('/usage', eitherAuth, (req, res) => {
   const cfg = require('./services/configService');
   const llm = require('./services/llmService');
+  const settings = cfg.load();
   res.json({
     currentModel:  llm.currentModel,
     embeddingModel:'nomic-embed-text',
     engine:        llm.getEngine(),
-    tokenUsage:    cfg.getTokenUsage()
+    tokenUsage:    cfg.getTokenUsage(),
+    guardrails: {
+      inputValidationBlocked: settings.inputValidationBlocked || 0,
+      outputFiltered: settings.outputFiltered || 0,
+      queriesFiltered: settings.queriesFiltered || 0
+    }
+  });
+});
+
+// ── Version info (public) ─────────────────────────────────────────────────
+router.get('/version', async (req, res) => {
+  const cfg = require('./services/configService');
+  const settings = cfg.load();
+  res.json({
+    version: settings.version || process.env.MNEMOSYNE_VERSION || 'v1.0.0',
+    buildTime: process.env.BUILD_TIME || new Date().toISOString()
+  });
+});
+
+// ── Guardrails metrics (Session only) ────────────────────────────────────
+router.get('/guardrails/metrics', eitherAuth, (req, res) => {
+  const cfg = require('./services/configService');
+  const settings = cfg.load();
+  res.json({
+    inputValidationBlocked: settings.inputValidationBlocked || 0,
+    outputFiltered: settings.outputFiltered || 0,
+    queriesFiltered: settings.queriesFiltered || 0
   });
 });
 
@@ -191,6 +218,34 @@ router.delete('/usage', eitherAuth, (req, res) => {
   const cfg = require('./services/configService');
   cfg.resetTokenUsage();
   res.json({ message: 'Token usage stats reset.' });
+});
+
+// ── Live Log Viewer (Session only) ───────────────────────────────────────
+router.get('/logs', eitherAuth, async (req, res) => {
+  const fs = require('fs');
+  const logPath = '/var/log/rag/combined.log';
+  const count = Math.min(parseInt(req.query.lines) || 200, 1000);
+
+  try {
+    const data = await fs.promises.readFile(logPath, 'utf8');
+    const logs = data
+      .split('\n')
+      .filter(line => line.trim())
+      .slice(-count)
+      .map((line, index) => {
+        const match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\]:\s*(.*)$/);
+        return {
+          index,
+          timestamp: match ? match[1] : null,
+          level: match ? match[2].toLowerCase() : 'info',
+          message: match ? match[3] : line
+        };
+      });
+    return res.json({ logs, count: logs.length });
+  } catch (err) {
+    logger.warn(`[LogServer] Log read error: ${err.message}`);
+    return res.status(500).json({ error: 'Log read failed', details: err.message });
+  }
 });
 
 // ── Healthcheck (public) ──────────────────────────────────────────────

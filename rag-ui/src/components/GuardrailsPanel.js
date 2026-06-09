@@ -20,10 +20,36 @@ export default function GuardrailsPanel({ onRefresh }) {
     enableOutputFiltering: true,
     enableEnhancedLogging: true,
     enableDocumentSensitivity: true,
+    inputValidationBlocked: 0,
+    outputFiltered: 0,
+    queriesFiltered: 0,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  
+  // Poll guardrail metrics every 2 seconds
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const response = await ragApi.getUsage();
+        if (response.guardrails) {
+          setSettings(prev => ({
+            ...prev,
+            inputValidationBlocked: response.guardrails.inputValidationBlocked || 0,
+            outputFiltered: response.guardrails.outputFiltered || 0,
+            queriesFiltered: response.guardrails.queriesFiltered || 0,
+          }));
+        }
+      } catch (err) {
+        // Silent fail - metrics are optional
+      }
+    };
+    
+    const interval = setInterval(fetchMetrics, 2000);
+    fetchMetrics();
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     loadSettings();
@@ -108,7 +134,7 @@ export default function GuardrailsPanel({ onRefresh }) {
             className="guardrails-metric-value"
             style={{ color: "var(--danger)" }}
           >
-            0
+            {settings.inputValidationBlocked}
           </div>
           <div className="guardrails-metric-label">
             Injection Attempts Blocked
@@ -119,7 +145,7 @@ export default function GuardrailsPanel({ onRefresh }) {
             className="guardrails-metric-value"
             style={{ color: "var(--warn)" }}
           >
-            0
+            {settings.outputFiltered}
           </div>
           <div className="guardrails-metric-label">Responses Filtered</div>
         </div>
@@ -128,7 +154,7 @@ export default function GuardrailsPanel({ onRefresh }) {
             className="guardrails-metric-value"
             style={{ color: "var(--success)" }}
           >
-            0
+            {settings.queriesFiltered}
           </div>
           <div className="guardrails-metric-label">Queries Processed</div>
         </div>

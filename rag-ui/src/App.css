@@ -391,6 +391,12 @@
   letter-spacing: 0.3px;
 }
 
+.version-info {
+  color: var(--accent);
+  font-weight: 500;
+  opacity: 0.8;
+}
+
 .footer-sep {
   color: var(--border2);
 }

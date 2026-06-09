@@ -99,6 +99,10 @@ async function processRagQuery(query, options = {}, job = null) {
     fromCache: false
   };
 
+  configService.update({
+    queriesFiltered: (configService.load().queriesFiltered || 0) + 1
+  });
+
   if (job) await job.progress(100);
   return result;
 }
@@ -114,25 +118,29 @@ exports.query = async (req, res) => {
 
   const trimmedQuery = query.trim().substring(0, 1000);
 
-  // Input validation: detect potential jailbreak attempts (if enabled)
-  if (configService.get('enableInputValidation')) {
-    const injectionPatterns = [
-      /ignore\s+(previous|all|these)\s+instructions/i,
-      /system\s+prompt[:\s]/i,
-      /you\s+are\s+now\s+/i,
-      /override\s+/i,
-      /bypass\s+/i,
-      /reveal\s+(system|internal|prompt)/i,
-      /admin\s+mode/i,
-      /developer\s+mode/i
-    ];
+// Input validation: detect potential jailbreak attempts (if enabled)
+   if (configService.get('enableInputValidation')) {
+     const injectionPatterns = [
+       /ignore\s+(previous|all|these)\s+instructions/i,
+       /system\s+prompt[:\s]/i,
+       /you\s+are\s+now\s+/i,
+       /override\s+/i,
+       /bypass\s+/i,
+       /reveal\s+(system|internal|prompt)/i,
+       /admin\s+mode/i,
+       /developer\s+mode/i
+     ];
 
-    const isInjectionAttempt = injectionPatterns.some(pattern => pattern.test(trimmedQuery));
-    if (isInjectionAttempt) {
-      logger.warn(`[Security] Potential jailbreak attempt detected: "${trimmedQuery.substring(0, 100)}"`);
-      return res.status(400).json({ error: 'Query contains invalid content. Please rephrase your question.' });
-    }
-  }
+     const isInjectionAttempt = injectionPatterns.some(pattern => pattern.test(trimmedQuery));
+     if (isInjectionAttempt) {
+       logger.warn(`[Security] Potential jailbreak attempt detected: "${trimmedQuery.substring(0, 100)}"`);
+       // Increment guardrail counter
+       configService.update({
+         inputValidationBlocked: (configService.load().inputValidationBlocked || 0) + 1
+       });
+       return res.status(400).json({ error: 'Query contains invalid content. Please rephrase your question.' });
+     }
+   }
 
   try {
     // Log query details including session/tags from UI
