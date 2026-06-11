@@ -17,6 +17,7 @@ import {
   HardDrive,
   Cloud,
   Shield,
+  Info,
 } from "lucide-react";
 import { ragApi } from "../api";
 
@@ -85,7 +86,9 @@ export default function SettingsPanel({ onRefresh }) {
       setSettings(s);
       setLlmEngine(s.llmEngine || "");
       setLocalModel(s.localLlmModel || "llama3.2");
-      if (s.openrouterApiKey) setApiKey(s.openrouterApiKey);
+      if (s.openrouterApiKey && !s.openrouterApiKey.startsWith('sk-or-...')) {
+        setApiKey(s.openrouterApiKey);
+      }
       setSystemPrompt(
         s.systemPrompt ||
           `You are Mnemosyne, an AI assistant for a RAG knowledge base system.
@@ -538,7 +541,18 @@ RULES:
             {showOpenRouterSection && (
               <>
                 <div className="form-group">
-                  <label className="form-label">OpenRouter API Key</label>
+                  <label className="form-label">
+                    OpenRouter API Key
+                    <a
+                      href="https://openrouter.ai"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="info-btn-link"
+                      title="Get an API key at openrouter.ai"
+                    >
+                      <Info size={13} />
+                    </a>
+                  </label>
                   <div className="key-input-wrap">
                     <input
                       className="sp-input"

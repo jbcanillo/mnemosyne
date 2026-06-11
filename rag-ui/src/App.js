@@ -286,6 +286,19 @@ function AuthenticatedApp() {
               Ollama
             </a>
           </span>
+          <span>
+            <br />
+          </span>
+          <span>
+            <a
+              href="https://github.com/jbcanillo/mnemosyne/blob/main/LICENSE"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "inherit", textDecoration: "none", fontSize: "11px", opacity: 0.7 }}
+            >
+              MIT License
+            </a>
+          </span>
         </div>
       </footer>
 

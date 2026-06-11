@@ -169,6 +169,18 @@ exports.getUsage = async (req, res) => {
   }
 };
 
+// GET /api/analytics/api-keys
+exports.getApiKeyUsage = async (req, res) => {
+  try {
+    const apiKeyService = require('../services/apiKeyService');
+    const data = apiKeyService.getAnalytics();
+    res.json(data);
+  } catch (err) {
+    logger.error('[Analytics] API key analytics error:', err.message);
+    res.status(500).json({ error: 'Failed to get API key analytics' });
+  }
+};
+
 // Helper functions
 async function getHealthStatus() {
   const health = {};

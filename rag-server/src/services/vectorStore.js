@@ -19,11 +19,14 @@ class VectorStore {
         name: COLLECTION_NAME,
         metadata: {
           description: 'Mnemosyne RAG Knowledge Base',
-          'hnsw:space': 'cosine'   // correct key format for ChromaDB
+          'hnsw:space': 'cosine'   // required for nomic-embed-text
         }
       });
       const count = await this.collection.count();
       logger.info(`Vector store ready: collection="${COLLECTION_NAME}", chunks=${count}`);
+      if (count === 0) {
+        logger.warn('Vector store is empty — knowledge base has no chunks. Upload documents via the Admin UI.');
+      }
     } catch (err) {
       logger.error('VectorStore init failed:', err.message);
       throw err;

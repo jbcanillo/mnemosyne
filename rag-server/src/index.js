@@ -142,6 +142,10 @@ app.listen(PORT, '0.0.0.0', async () => {
   try {
     const ms = require('./services/modelsService');
     await ms.initialize();
+    const models = await ms.getAllModels();
+    if (!models || models.length === 0) {
+      logger.warn('No models configured — add models via the Admin UI; this can happen if Redis data was lost.');
+    }
   } catch (err) {
     logger.error('Models service init error:', err.message);
   }

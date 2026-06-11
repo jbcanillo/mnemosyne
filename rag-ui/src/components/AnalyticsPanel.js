@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import {
   BarChart3, ScatterChart, PieChart as PieChart3, LineChart as LineChart3, Calendar,
-  AlertCircle, RefreshCw, Info, X, Mouse, MessageSquare,
+  AlertCircle, RefreshCw, Info, X, Mouse, MessageSquare, KeyRound,
 } from "lucide-react";
 import ragApi from "../api";
 
@@ -70,47 +70,37 @@ const buildFallbackGraph = () => {
 // ── chart data builders ───────────────────────────────────────────────────────
 
 // 1. Conversations per day — real: sessionsByDay[].count
-// Shows up to 31 days, filtered by month if selected
 const buildConversationsData = (sessionsByDay, monthFilter = 'all') => {
   let filtered = sessionsByDay || [];
-  
-  // Apply month filter if not 'all'
   if (monthFilter !== 'all') {
     filtered = filtered.filter(day => {
       const date = new Date(day.date + "T00:00:00");
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` === monthFilter;
     });
   }
-  
-  // Take up to 31 days (most recent)
   const recent = filtered.slice(-31);
-  
   return recent.map((day) => ({
-    day: new Date(day.date + "T00:00:00").toLocaleDateString("en-US", { 
-      month: "short", 
-      day: "numeric",
-      year: "numeric"
+    day: new Date(day.date + "T00:00:00").toLocaleDateString("en-US", {
+      month: "short", day: "numeric", year: "numeric"
     }),
     conversations: day.count,
-    rawDate: day.date // Keep for potential further processing
+    rawDate: day.date
   }));
 };
 
-// 2. Tag document distribution — real: tags[].documentCount (pie chart)
+// 2. Tag document distribution — pie chart
 const buildTagPieData = (tags) =>
   (tags || [])
     .filter((t) => (t.documentCount || 0) > 0)
     .sort((a, b) => (b.documentCount || 0) - (a.documentCount || 0))
-    .slice(0, 12) // cap at 12 slices for legibility
+    .slice(0, 12)
     .map((t) => ({ name: t.name, value: t.documentCount }));
 
-// 3. Avg messages per day — real: from messagesByDay with user/assistant breakdown
+// 3. Avg messages per day
 const buildAvgMessagesData = (messagesByDay) =>
   (messagesByDay || []).slice(-7).map((day) => ({
-    day: new Date(day.date + "T00:00:00").toLocaleDateString("en-US", { 
-      month: "short", 
-      day: "numeric",
-      year: "numeric"
+    day: new Date(day.date + "T00:00:00").toLocaleDateString("en-US", {
+      month: "short", day: "numeric", year: "numeric"
     }),
     userMessages: day.userMessages || 0,
     assistantMessages: day.assistantMessages || 0,
@@ -121,7 +111,6 @@ const buildCombinedActivityData = (sessionsByDay, messagesByDay, monthFilter = '
   const formatDay = (dateStr) => new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric"
   });
-  
   let sessionsFiltered = sessionsByDay || [];
   if (monthFilter !== 'all') {
     sessionsFiltered = sessionsFiltered.filter(day => {
@@ -130,9 +119,7 @@ const buildCombinedActivityData = (sessionsByDay, messagesByDay, monthFilter = '
     });
   }
   const allowedDates = new Set(sessionsFiltered.map(d => d.date));
-  
   let messagesFiltered = (messagesByDay || []).filter(m => allowedDates.has(m.date));
-  
   const map = new Map();
   for (const s of sessionsFiltered) {
     map.set(s.date, { rawDate: s.date, day: formatDay(s.date), sessions: s.count, userMessages: 0, assistantMessages: 0 });
@@ -147,6 +134,16 @@ const buildCombinedActivityData = (sessionsByDay, messagesByDay, monthFilter = '
     entry.assistantMessages = m.assistantMessages || 0;
   }
   return Array.from(map.values()).sort((a,b) => new Date(a.rawDate) - new Date(b.rawDate));
+};
+
+// 5. API key query counts — horizontal bar chart
+const buildApiKeyUsageData = (apiKeyUsage) => {
+  if (!apiKeyUsage || !apiKeyUsage.keys) return [];
+  return apiKeyUsage.keys
+    .filter((k) => (k.queryCount || 0) > 0)
+    .sort((a, b) => b.queryCount - a.queryCount)
+    .slice(0, 20)
+    .map((k) => ({ name: k.name, queries: k.queryCount }));
 };
 
 // ── shared tooltip ────────────────────────────────────────────────────────────
@@ -171,7 +168,6 @@ const ChartTooltip = ({ active, payload, label, unit = "" }) => {
   );
 };
 
-// Custom pie label — only show name+% for slices large enough
 const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }) => {
   if (percent < 0.05) return null;
   const RADIAN = Math.PI / 180;
@@ -218,14 +214,17 @@ export default function AnalyticsPanel() {
   const graphRef   = useRef();
   const wrapperRef = useRef();
 
-   const [tagData,          setTagData]          = useState(() => buildFallbackGraph());
-   const [conversationsData,setConversationsData] = useState([]);
-   const [tagPieData,       setTagPieData]        = useState([]);
-   const [avgMsgsData,      setAvgMsgsData]       = useState([]);
-   const [sessionsByDayRaw, setSessionsByDayRaw] = useState([]);
-   const [messagesByDay,    setMessagesByDay]     = useState([]);
-   const [selectedMonth,    setSelectedMonth]     = useState('all');
-   const [dims,             setDims]              = useState({ width: 0, height: 0 });
+  const [tagData,            setTagData]            = useState(() => buildFallbackGraph());
+  const [conversationsData,  setConversationsData]  = useState([]);
+  const [combinedData,      setCombinedData]       = useState([]);
+  const [tagPieData,        setTagPieData]         = useState([]);
+  const [avgMsgsData,       setAvgMsgsData]        = useState([]);
+  const [useApiKeyData,     setUseApiKeyData]      = useState([]);
+  const [sessionsByDayRaw,  setSessionsByDayRaw]   = useState([]);
+  const [messagesByDay,     setMessagesByDay]      = useState([]);
+  const [selectedMonth,     setSelectedMonth]      = useState('all');
+  const [apiKeyUsage,       setApiKeyUsage]        = useState(null);
+  const [dims,              setDims]               = useState({ width: 0, height: 0 });
 
   const [error,       setError]       = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
@@ -278,76 +277,84 @@ export default function AnalyticsPanel() {
     return () => window.removeEventListener("keydown", handle);
   }, [tagData.nodes.length]);
 
-    const fetchData = useCallback(async () => {
-      try {
-        setRefreshing(true);
-        setError(null);
+  // Fetch all analytics data including API key usage
+  const fetchData = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      setError(null);
 
-        const [tags, sessions, sessionsListRes] = await Promise.all([
-          ragApi.getAnalyticsTags(),
-          ragApi.getAnalyticsSessions(),
-          ragApi.getSessions()
-        ]);
-        const sessionsList = sessionsListRes.sessions || [];
+      const [tags, sessions, sessionsListRes, apiKeyRes] = await Promise.all([
+        ragApi.getAnalyticsTags(),
+        ragApi.getAnalyticsSessions(),
+        ragApi.getSessions(),
+        ragApi.getAnalyticsApiKeys?.().catch(() => ({ keys: [], totalQueries: 0 }))
+      ]);
+      const sessionsList = sessionsListRes.sessions || [];
+      const apiKeyData = apiKeyRes.keys || [];
+      setApiKeyUsage(apiKeyRes);
 
-         // Sphere
-         if (tags.tags?.length > 0) {
-           const nodes = tags.tags.map((tag) => ({
-             id: tag.name, name: tag.name,
-             size: Math.max(4, Math.sqrt(tag.chunkCount) / 1.5),
-             chunks: tag.chunkCount,
-             color: getTagColor(tag.name),
-           }));
-           const links = (tags.relationships || []).map((rel) => ({
-             source: rel.source, target: rel.target,
-             value: rel.value, color: "rgba(124,92,252,0.55)",
-           }));
-           setTagData({ nodes, links });
-           setTagPieData(buildTagPieData(tags.tags));
-         } else {
-           setTagData({ nodes: [], links: [] });
-           setTagPieData([]);
-         }
-
-        // Raw data for activity chart
-        const days = sessions.sessionsByDay || [];
-        setSessionsByDayRaw(days);
-        const msgsByDay = sessions.messagesByDay || [];
-        setMessagesByDay(msgsByDay);
-
-         // Compute tag query counts from sessions (only sessions with exactly 1 tag)
-         const tagCounts = {};
-         sessionsList.forEach(s => {
-           const tagsArr = s.tags || [];
-           if (tagsArr.length === 1) {
-             const tag = tagsArr[0];
-             tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-           }
-         });
-         const tagQueries = Object.entries(tagCounts)
-           .map(([name, queries]) => ({ name, queries }))
-           .sort((a, b) => b.queries - a.queries)
-           .slice(0, 15);
-         setAvgMsgsData(tagQueries);
-
-        setLastRefresh(new Date());
-      } catch (err) {
-        setError(err.message || "Failed to load analytics data");
-      } finally {
-        setRefreshing(false);
+      // Sphere
+      if (tags.tags?.length > 0) {
+        const nodes = tags.tags.map((tag) => ({
+          id: tag.name, name: tag.name,
+          size: Math.max(4, Math.sqrt(tag.chunkCount) / 1.5),
+          chunks: tag.chunkCount,
+          color: getTagColor(tag.name),
+        }));
+        const links = (tags.relationships || []).map((rel) => ({
+          source: rel.source, target: rel.target,
+          value: rel.value, color: "rgba(124,92,252,0.55)",
+        }));
+        setTagData({ nodes, links });
+        setTagPieData(buildTagPieData(tags.tags));
+      } else {
+        setTagData({ nodes: [], links: [] });
+        setTagPieData([]);
       }
-    }, []);
 
-   useEffect(() => {
-     fetchData();
-     const id = setInterval(fetchData, 30000);
-     return () => clearInterval(id);
-   }, [fetchData]);
+      // Raw data for activity chart
+      const days = sessions.sessionsByDay || [];
+      setSessionsByDayRaw(days);
+      const msgsByDay = sessions.messagesByDay || [];
+      setMessagesByDay(msgsByDay);
 
-    // Recompute combined activity data when raw data or month filter changes
-    useEffect(() => {
-      setConversationsData(buildCombinedActivityData(sessionsByDayRaw, messagesByDay, selectedMonth));
-    }, [sessionsByDayRaw, messagesByDay, selectedMonth]);
+      // Compute tag query counts from sessions (only sessions with exactly 1 tag)
+      const tagCounts = {};
+      sessionsList.forEach(s => {
+        const tagsArr = s.tags || [];
+        if (tagsArr.length === 1) {
+          const tag = tagsArr[0];
+          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+        }
+      });
+      const tagQueries = Object.entries(tagCounts)
+        .map(([name, queries]) => ({ name, queries }))
+        .sort((a, b) => b.queries - a.queries)
+        .slice(0, 15);
+      setAvgMsgsData(tagQueries);
+
+      // API key usage data
+      const apiKeyBarData = buildApiKeyUsageData(apiKeyRes);
+      setUseApiKeyData(apiKeyBarData);
+
+      setLastRefresh(new Date());
+    } catch (err) {
+      setError(err.message || "Failed to load analytics data");
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const id = setInterval(fetchData, 30000);
+    return () => clearInterval(id);
+  }, [fetchData]);
+
+  // Recompute combined activity data when raw data or month filter changes
+  useEffect(() => {
+    setCombinedData(buildCombinedActivityData(sessionsByDayRaw, messagesByDay, selectedMonth));
+  }, [sessionsByDayRaw, messagesByDay, selectedMonth]);
 
   const handleEngineStop = useCallback(() => {
     if (!graphRef.current) return;
@@ -368,40 +375,40 @@ export default function AnalyticsPanel() {
   };
 
    const noData = (icon, msg) => (
-     <div className="no-data-message" style={{
-       display: 'flex',
-       flexDirection: 'column',
-       alignItems: 'center',
-       justifyContent: 'center',
-       height: '100%',
-       minHeight: '240px',
-       color: 'var(--text3)'
-     }}>{icon}<p style={{ marginTop: '12px' }}>{msg}</p></div>
-   );
+    <div className="no-data-message" style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100%',
+      minHeight: '240px',
+      color: 'var(--text3)'
+    }}>{icon}<p style={{ marginTop: '12px' }}>{msg}</p></div>
+  );
 
-   // Get unique months from data for filter dropdown
-   const getAvailableMonths = (days) => {
-     const months = new Set();
-     (days || []).forEach(day => {
-       const date = new Date(day.date + "T00:00:00");
-       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-       months.add(monthKey);
-     });
-     return Array.from(months).sort().reverse(); // Most recent first
-   };
+  // Get unique months from data for filter dropdown
+  const getAvailableMonths = (days) => {
+    const months = new Set();
+    (days || []).forEach(day => {
+      const date = new Date(day.date + "T00:00:00");
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      months.add(monthKey);
+    });
+    return Array.from(months).sort().reverse();
+  };
 
-   const availableMonths = getAvailableMonths(sessionsByDayRaw);
-   const monthOptions = [
-     { value: 'all', label: 'All Time' },
-     ...availableMonths.map(m => {
-       const [year, month] = m.split('-');
-       const date = new Date(parseInt(year), parseInt(month) - 1);
-       return { 
-         value: m, 
-         label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-       };
-     })
-   ];
+  const availableMonths = getAvailableMonths(sessionsByDayRaw);
+  const monthOptions = [
+    { value: 'all', label: 'All Time' },
+    ...availableMonths.map(m => {
+      const [year, month] = m.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      return {
+        value: m,
+        label: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      };
+    })
+  ];
 
   return (
     <div className="analytics-panel">
@@ -412,7 +419,7 @@ export default function AnalyticsPanel() {
             <div className="key-status key-ok">
               <span className="last-refresh">Updated {lastRefresh.toLocaleTimeString()}</span>
             </div>
-         )}
+          )}
           <button onClick={fetchData} className="btn btn-ghost btn-xs" disabled={refreshing}>
             <RefreshCw size={14} className={refreshing ? "spinning" : ""} /> Refresh
           </button>
@@ -425,7 +432,7 @@ export default function AnalyticsPanel() {
         </div>
       )}
 
-      {/* ── Knowledge ─ */}
+      {/* ── Knowledge Graph ── */}
       <div className="tag-sphere-card">
         <div className="card-header">
           <h3><ScatterChart size={15} /> Knowledge Thortspace</h3>
@@ -478,7 +485,7 @@ export default function AnalyticsPanel() {
            <div className="card-header">
              <h3><LineChart3 size={15} /> Conversations per Day</h3>
              {availableMonths.length > 0 && (
-               <select 
+               <select
                  className="month-filter"
                  value={selectedMonth}
                  onChange={(e) => setSelectedMonth(e.target.value)}
@@ -490,9 +497,9 @@ export default function AnalyticsPanel() {
              )}
            </div>
            <div className="chart-body">
-             {conversationsData.length > 0 ? (
+             {combinedData.length > 0 ? (
                <ResponsiveContainer width="100%" height={240}>
-                 <LineChart data={conversationsData} margin={{ top:8, right:16, left:0, bottom:0 }}>
+                 <LineChart data={combinedData} margin={{ top:8, right:16, left:0, bottom:0 }}>
                    <CartesianGrid strokeDasharray="3 3" stroke={gridLine} vertical={false} />
                    <XAxis dataKey="day" {...axisProps} />
                    <YAxis {...axisProps} allowDecimals={false} />
@@ -500,7 +507,7 @@ export default function AnalyticsPanel() {
                    <Legend />
                    <Line
                      type="monotone"
-                     dataKey="sessions"
+                     dataKey="conversations"
                      name="Conversations"
                      stroke="#ffb454"
                      strokeWidth={2.5}
@@ -567,7 +574,7 @@ export default function AnalyticsPanel() {
                           }}>
                             <div style={{ fontWeight:700, marginBottom:4, color:"var(--text2)" }}>{d.name}</div>
                              <div style={{ color:"var(--text3)" }}>
-                               {d.value} documents &nbsp;·&nbsp; {((d.value / total) * 100).toFixed(1)}%
+                               {d.value} documents &nbsp;&middot;&nbsp; {((d.value / total) * 100).toFixed(1)}%
                              </div>
                           </div>
                         );
@@ -607,6 +614,46 @@ export default function AnalyticsPanel() {
                 </ResponsiveContainer>
               </>
             ) : noData(<BarChart3 size={30} />, "No query data available yet.")}
+          </div>
+        </div>
+
+        {/* 4. Query by API Key — horizontal bar chart */}
+        <div className="chart-card wide" style={{ gridColumn: 'span 2' }}>
+          <div className="card-header">
+            <h3><KeyRound size={15} /> Queries by API Key</h3>
+          </div>
+          <div className="chart-body">
+            {useApiKeyData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart
+                    data={useApiKeyData}
+                    margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+                    layout="vertical"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridLine} horizontal={false} />
+                    <XAxis type="number" {...axisProps} allowDecimals={false} />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      {...axisProps}
+                      tick={{ fontSize: 10, width: 120 }}
+                      width={120}
+                    />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="queries" name="Queries" radius={[0, 4, 4, 0]}>
+                      {useApiKeyData.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </>
+            ) : (
+              noData(<KeyRound size={30} />, apiKeyUsage?.totalKeys === 0
+                ? "No API keys configured yet."
+                : "No query data available yet.")
+            )}
           </div>
         </div>
 

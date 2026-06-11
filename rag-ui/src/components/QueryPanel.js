@@ -17,6 +17,8 @@ import {
   Copy,
   Share2,
   Info,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { ragApi } from "../api";
 
@@ -64,6 +66,7 @@ export default function QueryPanel({
   const [filterDate, setFilterDate] = useState(
     () => new Date().toISOString().split("T")[0],
   );
+  const [showTagFilter, setShowTagFilter] = useState(false);
   const bottomRef = useRef(null);
   const sessionsLoadedRef = useRef(false);
 
@@ -953,32 +956,42 @@ export default function QueryPanel({
 
         {/* Input */}
         <form className="query-form" onSubmit={handleQuery}>
-          {/* Tag selector - per conversation */}
+          {/* Tag selector - per conversation - collapsible to save space */}
           {availableTags.length > 0 && (
-            <div className="chat-tag-selector">
-              <div className="chat-tag-label">
+            <div className="chat-tag-section">
+              <button
+                type="button"
+                className="chat-tag-toggle"
+                onClick={() => setShowTagFilter((v) => !v)}
+                aria-expanded={showTagFilter}
+              >
                 <Tag size={12} /> Filter by tags
-              </div>
-              <div className="chat-tag-chips">
-                {availableTags.map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    className={`chat-tag-chip ${selectedTags.includes(tag) ? "active" : ""}`}
-                    onClick={() => toggleTag(tag)}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-              {selectedTags.length > 0 && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs chat-tag-clear"
-                  onClick={clearSelectedTags}
-                >
-                  <X size={10} /> Unfilter
-                </button>
+                {showTagFilter ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+              {showTagFilter && (
+                <div className="chat-tag-selector">
+                  <div className="chat-tag-chips">
+                    {availableTags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className={`chat-tag-chip ${selectedTags.includes(tag) ? "active" : ""}`}
+                        onClick={() => toggleTag(tag)}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedTags.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs chat-tag-clear"
+                      onClick={clearSelectedTags}
+                    >
+                      <X size={10} /> Unfilter
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}

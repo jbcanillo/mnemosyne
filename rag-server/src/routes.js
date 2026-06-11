@@ -271,22 +271,35 @@ router.get('/healthcheck', eitherAuth, statusLimiter, async (req, res) => {
     checks.chromadb = { ok: false, error: err.message };
   }
 
-  // OpenRouter (fast ping)
-  try {
-    const client = llm._openrouterClient();
-    const r = await client.chat.completions.create({
-      model: llm.currentModel,
-      messages: [{ role: 'user', content: 'ping' }],
-      max_tokens: 1
-    });
-    checks.openrouter = { ok: true, model: llm.currentModel, latencyMs: null };
-  } catch (err) {
-    const msg = err.message || '';
-    checks.openrouter = {
-      ok: msg.includes('429'),   // 429 = rate limited but key is valid
-      model: llm.currentModel,
-      error: msg
-    };
+  // OpenRouter (skip when engine is local — Ollama is used instead)
+  const llmEngine = (() => {
+    try {
+      const c = require('./services/configService').load();
+      if (c.llmEngine === 'local') return 'local';
+      if (c.llmEngine === 'openrouter') return 'openrouter';
+      if (c.openrouterApiKey) return 'openrouter';
+    } catch (_) {}
+    return 'auto';
+  })();
+  if (llmEngine !== 'local') {
+    try {
+      const client = llm._openrouterClient();
+      const r = await client.chat.completions.create({
+        model: llm.currentModel,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 1
+      });
+      checks.openrouter = { ok: true, model: llm.currentModel, latencyMs: null };
+    } catch (err) {
+      const msg = err.message || '';
+      checks.openrouter = {
+        ok: msg.includes('429'),
+        model: llm.currentModel,
+        error: msg
+      };
+    }
+  } else {
+    checks.openrouter = { ok: true, model: llm.currentModel, skipped: true, reason: 'LLM engine is set to local (Ollama)' };
   }
 
   // Redis
@@ -744,3 +757,4 @@ router.get('/analytics/overview', requireSession, analyticsController.getOvervie
 router.get('/analytics/tags', requireSession, analyticsController.getTags);
 router.get('/analytics/sessions', requireSession, analyticsController.getSessions);
 router.get('/analytics/usage', requireSession, analyticsController.getUsage);
+router.get('/analytics/api-keys', requireSession, analyticsController.getApiKeyUsage);

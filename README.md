@@ -1,45 +1,91 @@
 # Mnemosyne — RAG Knowledge Base Agent
 
+> **License:** [MIT](#license)  
+> **Version:** v1.0.0
+
+![Mnemosyne Banner](banner.png)
+
 A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with full authentication, live LLM switching, and REST API for third-party chat integrations. Answers questions grounded exclusively in your own uploaded documents.
+
+---
+
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Component Stack](#component-stack)
+- [Authentication](#authentication)
+- [Guardrails](#guardrails)
+- [Quick Start](#quick-start)
+- [OCR Support (Images & Scanned PDFs)](#ocr-support-images--scanned-pdfs)
+- [Connect a Third-Party Chat Integration](#connect-a-third-party-chat-integration)
+- [Live LLM Switching](#live-llm-switching)
+- [REST API Reference](#rest-api-reference)
+- [Configuration Reference](#configuration-reference)
+- [Smart Rate Limiting](#smart-rate-limiting)
+- [Troubleshooting](#troubleshooting)
+- [Docker Container Reference](#docker-container-reference)
+- [License](#license)
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                   Docker Network (mnemosyne-rag-network)         │
-│                                                                  │
-│  ┌──────────────┐     ┌───────────────┐     ┌─────────────────┐  │
-│  │  React UI    │───▶│  RAG Server   │───▶│ OpenRouter API   │  │
-│  │  :3002       │     │  :3001        │     │ (LLM cloud)     │  │
-│  │  Login gate  │     │  API Key +    │     └─────────────────┘  │
-│  └──────────────┘     │  Session auth │     ┌─────────────────┐  │
-│                       └──────┬───────┘────▶  │ Ollama :11434   │ │
-│                               │              │ (embeddings     │ │
-│                       ┌───────┴──────┐       │  + optional LLM)│ │
-│                ┌──────▼──┐    ┌──────▼──┐    └─────────────────┘ │
-│                │ChromaDB │    │  Redis  │                        │
-│                │(vectors)│    │(cache+q)│                        │
-│                └─────────┘    └─────────┘                        │
-└──────────────────────────────────────────────────────────────────┘
-          ▲
-          │  HTTP  ·  X-API-Key header
-          │
- ┌────────┴──────────┐
- │  Third-party      │ ◀─── Any chat platform
- │  Chat App        │
- └──────────────────┘
+═══════════════════════════════════════════════════════════════════════
+                     Docker Network: mnemosyne-rag-network
+═══════════════════════════════════════════════════════════════════════
+
+ ┌─────────────────────────────────────────────────────────────────┐
+ │                         Infrastructure Layer                    │
+ │                                                                 │
+ │   ┌──────────────────┐    ┌────────────────────────────────┐   │
+ │   │  ChromaDB :8001  │    │  Redis :6379   (cache + queue) │   │
+ │   │  (vector store)  │    │                                │   │
+ │   └──────────────────┘    └────────────────────────────────┘   │
+ │          ▲                          ▲                            │
+ │          │                          │                            │
+ │   ┌──────────────────────────────────────────────┐             │
+ │   │           Ollama :11434 (Docker)             │             │
+ │   │   Embeddings : nomic-embed-text (~270 MB)    │             │
+ │   │   Optional LLM : llama3.2 / mistral / qwen  │             │
+ │   └──────────────────────────────────────────────┘             │
+ │                          ▲                                       │
+ ═══════════════════════════════════════════════════════════════════
+ │                          │   internal service communications    │
+ │                          ▼                                       │
+ │   ┌──────────────────────────────────────────────────────────┐  │
+ │   │              RAG Server :3001 (Node.js + Express)        │  │
+ │   │   REST API · Auth · Rate Limiting · Cache · Guardrails  │  │
+ │   └──────────────────────────────────────────────────────────┘  │
+ │                          ▲                                       │
+ │                          │   HTTP  ·  X-API-Key / X-Session-Token │
+ └──────────────────────────┼───────────────────────────────────────┘
+                            │
+          ┌─────────────────┴─────────────────┐
+          │                                    │
+   ┌──────▼──────┐                    ┌────────▼─────────┐
+   │  Viber Bot  │                    │  React Admin UI  │
+   │  Chatbot    │                    │          :3002   │
+   │  Controller │                    │  (via Nginx :80) │
+   └─────────────┘                    └──────────────────┘
+   (3rd-party)                           (auth-managed)
+
+   External LLM Providers (pluggable at runtime):
+   ┌─────────────────────────────────────────────────────────────┐
+   │  OpenRouter API  →  meta-llama/llama-3.1-8b-instruct:free  │
+   │                     stepfun/step-3.5-flash:free             │
+   │                     (any OpenRouter model)                  │
+   └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Component Stack
 
 | Component | Technology | Role |
 |-----------|------------|------|
-| **LLM (Generation)** | OpenRouter (cloud) *or* Ollama (local) | Response generation — free tier cloud models or local models via Ollama |
-| **Embeddings** | Ollama + nomic-embed-text | Local semantic indexing — ~270 MB, no API cost |
-| **Vector DB** | ChromaDB | Chunk storage and cosine similarity search |
-| **Cache / Queue** | Redis + Bull | Query caching, async job queue |
+| **LLM (Generation)** | [OpenRouter](#openrouter) (cloud) *or* [Ollama](#ollama) (local) | Response generation — free tier cloud models or local models via Ollama |
+| **Embeddings** | [Ollama](#ollama) + `nomic-embed-text` | Local semantic indexing — ~270 MB, no API cost |
+| **Vector DB** | [ChromaDB](https://www.trychroma.com/) | Chunk storage and cosine similarity search |
+| **Cache / Queue** | [Redis](https://redis.io/) + Bull | Query caching, async job queue |
 | **API Server** | Node.js + Express | REST API, auth, rate limiting |
 | **Admin UI** | React | Document management, query testing, live model switching, guardrails, and API key management |
 
@@ -47,24 +93,22 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 
 ## Authentication
 
-| Client | Method | Header |
-|--------|--------|--------|
-| Third-party app (API Key) | API Key | `X-API-Key: <RAG_API_KEY>` |
-| React Admin UI | Session Token | `X-Session-Token: <token>` (auto-injected after login) |
+### API Key — Server-to-Server
 
-### API Key — server-to-server
 - Static secret, minimum 32 characters
 - Set via `RAG_API_KEY` in `.env`
-- Also set in 3rd-Party Chat Interface as a constant or environment variable
+- Also set in 3rd-party chat integration as an environment variable
 - Grants access to `/api/query` and `/api/query/status/:jobId`
 
 ### Session Token — React UI
+
 - Login via `POST /api/auth/login` → receive a 64-char hex token
 - Valid for `SESSION_TTL_HOURS` (default 8 h), stored in `sessionStorage`
 - Token verified automatically on every page load
 - 5 failed login attempts → IP locked out for 15 minutes
 
-### Public endpoints (no auth required)
+### Public Endpoints (No Auth Required)
+
 - `GET /health`
 - `POST /api/auth/login`
 
@@ -72,7 +116,7 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 
 ## Guardrails
 
-Mnemosyne includes configurable security features designed for PDPA compliance and to prevent jailbreak attacks. These guardrails can be toggled in the **Guardrails** tab of the Admin UI or configured via environment variables.
+Mnemosyne includes configurable security features designed for data-privacy compliance and to prevent jailbreak attacks. These guardrails can be toggled in the **Guardrails** tab of the Admin UI or configured via environment variables.
 
 ### Security Features
 
@@ -84,10 +128,8 @@ Mnemosyne includes configurable security features designed for PDPA compliance a
 
 ### Configuration
 
-Set these features in `.env`:
-
 ```env
-# Security features for PDPA compliance and jailbreak prevention
+# Security features for data-privacy compliance and jailbreak prevention
 # Set to 'false' to disable, default is 'true'
 ENABLE_INPUT_VALIDATION=true
 ENABLE_PROMPT_HARDENING=true
@@ -96,18 +138,19 @@ ENABLE_ENHANCED_LOGGING=true
 ENABLE_DOCUMENT_SENSITIVITY=true
 ```
 
-All guardrails are enabled by default. Disable specific features as needed for your deployment requirements.
+All guardrails are enabled by default.
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
+
 - Docker Engine 24+ and Docker Compose v2+
 - 6 GB RAM minimum
-- A free [OpenRouter](https://openrouter.ai) API key
+- A free [OpenRouter](https://openrouter.ai) API key **or** local [Ollama](https://ollama.ai/) setup
 
-### 1 — Configure secrets
+### 1 — Configure Secrets
 
 ```bash
 cp .env.example .env
@@ -126,7 +169,7 @@ ADMIN_PASSWORD=your_strong_password
 OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxx
 ```
 
-### 2 — Start the stack
+### 2 — Start the Stack
 
 ```bash
 docker compose up -d
@@ -135,17 +178,39 @@ docker compose up -d
 docker logs mnemosyne-ollama -f
 ```
 
+### 2a — Rebuilding After Code Changes
+
+Mnemosyne uses Docker named volumes for all persistent data (ChromaDB embeddings, Redis config/queue, uploaded documents). **Do not run `docker compose down`** before rebuilding — that detaches and may delete volumes, causing data loss.
+
+```bash
+# SAFE: rebuild only rag-server (and rag-ui if needed), volumes untouched
+docker compose up --build --force-recreate rag-server rag-ui
+
+# If only the server changed:
+docker compose up --build --force-recreate rag-server
+```
+
+If you **must** run a full `docker compose down` (e.g. to change `.env` values), use the backup guard first:
+
+```bash
+bash scripts/backup-before-rebuild.sh
+```
+
+See `scripts/backup-chromadb.sh` for full backup/restore commands.
+
 ### 3 — Open the Admin UI
 
 **http://localhost:3002** → login with your `ADMIN_USERNAME` / `ADMIN_PASSWORD`
 
 The Admin UI provides tabs for Knowledge Base management, Query testing, System Status monitoring, API Keys, Guardrails configuration, and general Settings.
 
-### 4 — Upload documents
+### 4 — Upload Documents
 
 Go to the **Knowledge Base** tab and upload PDFs, Excel files, Markdown, DOCX, CSV, plain text, or images. Each document is parsed, chunked, embedded, and indexed automatically. A live progress bar shows the exact stage.
 
-#### OCR Support (Images & Scanned PDFs)
+---
+
+## OCR Support (Images & Scanned PDFs)
 
 Mnemosyne automatically extracts text from images and scanned PDFs using Tesseract OCR:
 
@@ -156,15 +221,16 @@ Mnemosyne automatically extracts text from images and scanned PDFs using Tessera
 OCR is enabled by default. To disable or configure:
 
 ```env
-# In .env
 OCR_ENABLED=false        # Set to false to disable OCR
 OCR_MIN_TEXT_LENGTH=10   # Minimum text for successful extraction
 OCR_LANG=eng             # Tesseract language code
 ```
 
-### 5 — Connect a third-party chat integration
+---
 
-Use the API key authentication for third-party integrations:
+## Connect a Third-Party Chat Integration
+
+Use the API key for third-party integrations:
 
 ```env
 # In your chat integration
@@ -173,6 +239,7 @@ RAG_API_KEY=your_64_char_hex_key  # same key as .env
 ```
 
 Verify the connection:
+
 ```bash
 curl http://localhost:3001/api/info \
   -H "X-API-Key: your_api_key"
@@ -190,24 +257,26 @@ You can switch the active language model **at runtime without restarting** any c
 
 Mnemosyne supports two LLM engines:
 
-- **OpenRouter** (cloud): Uses OpenRouter's API for generation. Set `OPENROUTER_API_KEY` in `.env` (free tier available, no credits needed).
-- **Local Ollama**: Runs LLMs locally in your Ollama container (e.g., llama3.2, mistral, qwen2.5). No API key needed.
+- **[OpenRouter](#openrouter)** (cloud): Uses OpenRouter's API for generation. Set `OPENROUTER_API_KEY` in `.env` (free tier available, no credits needed).
+- **Local Ollama**: Runs LLMs locally in the Ollama container. No API key needed.
 
-Choose the engine in the Settings tab (Model & RAG Settings → LLM Engine dropdown):
-- **Auto** (default): Uses OpenRouter if API key is present, otherwise Local Ollama
-- **openrouter**: Always use OpenRouter cloud API
-- **local**: Always use local Ollama models
+Choose the engine in the **Settings** tab (Model & RAG Settings → LLM Engine dropdown):
 
-Set the default local model via `LOCAL_LLM_MODEL` in `.env` (default: `llama3.2`).
+| Engine | Behavior |
+|--------|----------|
+| **Auto** (default) | Uses OpenRouter if API key is present, otherwise Local Ollama |
+| **openrouter** | Always use OpenRouter cloud API |
+| **local** | Always use local Ollama models |
 
-Available local models can be pulled with `ollama pull <model>` inside the Ollama container.
+Set the default local model via `LOCAL_LLM_MODEL` in `.env` (default: `llama3.2`). Available models can be pulled with `ollama pull <model>` inside the Ollama container.
 
 ### Switching Models (OpenRouter)
 
 #### Via the Admin UI
+
 Go to **System Status** → **Language Model** → select from configured OpenRouter models.
 
-### Via API
+#### Via API
 
 ```bash
 # List available free models
@@ -220,7 +289,9 @@ curl -X POST http://localhost:3001/api/models/switch \
   -H "X-Session-Token: your_token" \
   -d '{"modelId": "meta-llama/llama-3.1-8b-instruct:free"}'
 ```
-### Via Environment Variable (OpenRouter)
+
+#### Via Environment Variable (OpenRouter)
+
 To make an OpenRouter model switch permanent, update `OPENROUTER_MODEL` in `.env` and restart the container.
 
 For local Ollama models, set `LOCAL_LLM_MODEL` in `.env` (e.g., `llama3.2`, `mistral`, `qwen2.5`) and optionally set `LLM_ENGINE=local` to force local mode.
@@ -386,9 +457,11 @@ curl -X POST http://localhost:3001/api/vector-store/reset \
 | `ADMIN_USERNAME` | `admin` | UI login username |
 | `ADMIN_PASSWORD` | — | **Required.** Min 8 chars |
 | `SESSION_TTL_HOURS` | `8` | UI session lifetime (hours) |
-| `OPENROUTER_API_KEY` | — | **Required.** Free at openrouter.ai |
+| `OPENROUTER_API_KEY` | — | **Required for OpenRouter.** Free at [openrouter.ai](https://openrouter.ai) |
 | `OPENROUTER_MODEL` | `stepfun/step-3.5-flash:free` | Default LLM (switchable live) |
-| `OLLAMA_HOST` | `http://ollama:11434` | Ollama endpoint (embeddings) |
+| `LOCAL_LLM_MODEL` | `llama3.2` | Default local Ollama model |
+| `LLM_ENGINE` | *(auto)* | `openrouter`, `local`, or empty for auto-detect |
+| `OLLAMA_HOST` | `http://ollama:11434` | Ollama endpoint (embeddings + local LLM) |
 | `EMBED_MODEL` | `nomic-embed-text` | Embedding model |
 | `TOP_K` | `5` | Chunks retrieved per query |
 | `MIN_RELEVANCE_SCORE` | `0.15` | Cosine similarity threshold (0–1) |
@@ -411,74 +484,32 @@ Mnemosyne implements **intelligent, endpoint-specific rate limiting** to prevent
 
 | Endpoint Type | Limit | Window | Purpose |
 |---------------|-------|--------|---------|
-| **Login** | 10 attempts | 15 minutes | Brute force protection |
-| **Query operations** | 150 req/min* | 1 minute | Document queries + job status polls |
-| **Status & Health** | 300 req/min* | 1 minute | Live metric polling (1–5 sec intervals) |
+| **Login** | 10 attempts | 15 minutes | Brute-force protection |
+| **Query operations** | 150 req/min[*](#) | 1 minute | Document queries + job status polls |
+| **Status & Health** | 300 req/min[*](#) | 1 minute | Live metric polling (1–5 sec intervals) |
 | **Document upload** | 10 uploads | 1 minute | Document ingestion |
 | **Unauthenticated** | 50% lower | — | API key/session exempt |
 
-*Authenticated users (with `X-Session-Token` or `X-API-Key` header) receive higher limits.
+> **[*]** Authenticated users (with `X-Session-Token` or `X-API-Key` header) receive higher limits.
 
 ### How It Works
 
-**Login Brute Force Protection**
-- 10 failed attempts per 15 minutes per IP address
-- Returns `429 Too Many Requests` after 10 failures
-
-**High-Throughput Query Operations**
-- Supports **150 requests/minute** (~2.5 req/sec) for authenticated users
-- Handles:
-  - Multiple simultaneous document uploads with 3-second polling intervals
-  - Rapid query submissions with async job polling
-  - Both sync and async query modes
-
-**Live Status Polling**
-- Status checks and health polls have **highest limit (300 req/min)**
-- Enables:
-  - Queue metrics polling every 1 second
-  - Service health checks every 5 seconds
-  - Real-time component status updates
-
-**Intelligent Backoff**
-- When a client hits a rate limit, polling automatically backs off with **exponential backoff**:
-  - First retry: 1.5x the normal interval
-  - Second retry: 2.25x the normal interval
-  - Third retry: 3.375x the normal interval
-  - Prevents retry storms and distributes load
+- **Login Brute-Force Protection**: 10 failed attempts per 15 minutes per IP. Returns `429` after 10 failures.
+- **High-Throughput Queries**: Supports 150 requests/minute (~2.5 req/sec) for authenticated users. Handles simultaneous uploads with 3-second polling intervals.
+- **Live Status Polling**: Status/health checks get 300 req/min. Enables 1-second queue metric polling and 5-second health checks.
+- **Intelligent Backoff**: Clients hitting the rate limit auto-backoff exponentially (1.5× → 2.25× → 3.375×) to prevent retry storms.
 
 ### Configuration
 
-Set authenticated user limit in `.env`:
-
 ```env
-# Default: 120 (allows 2 req/sec for auth users)
-# Increase for high-concurrency deployments
+# Default: 120 (≈2 req/sec for auth users)
 # Example: 240 = 4 req/sec, 60 = 1 req/sec
 RATE_LIMIT_MAX=120
 ```
 
-### Example: Multiple Document Uploads
-
-Without smart rate limiting, the following scenario would fail:
-
-```bash
-# Upload 5 documents in rapid succession
-for i in {1..5}; do
-  curl -X POST http://localhost:3001/api/documents/upload \
-    -H "X-Session-Token: $token" \
-    -F "file=@document_$i.pdf" &
-done
-wait
-
-# Each upload polls for status every 3 seconds
-# 5 docs × polling every 3s = 5 status requests total
-# ✓ Succeeds — within 10 uploads/min limit
-# ✓ Polling not throttled — within 300 req/min limit
-```
-
 ### Monitoring Rate Limits
 
-When a rate limit is exceeded, the server responds with:
+When a rate limit is exceeded:
 
 ```json
 {
@@ -487,34 +518,44 @@ When a rate limit is exceeded, the server responds with:
 }
 ```
 
-The UI automatically shows a toast notification with the error message. Status checks and other operations will gracefully retry with exponential backoff.
+The UI shows a toast notification. Operations retry automatically with exponential backoff.
 
 ---
 
 ## Troubleshooting
 
 **Document uploads succeed but queries return "no information"**
+
 Run the debug endpoint to see actual similarity scores:
+
 ```bash
 curl "http://localhost:3001/api/query/debug?q=your+question" -H "X-Session-Token: your_token"
 ```
-If all scores are below `MIN_RELEVANCE_SCORE`, lower the threshold in `.env`. If no chunks are returned at all, reset the vector store collection and re-upload documents — the collection may have been created with the wrong distance metric.
+
+If all scores are below `MIN_RELEVANCE_SCORE`, lower the threshold. If no chunks are returned at all, reset the vector store collection and re-upload — the collection may have been created with the wrong distance metric.
 
 **Document shows "Processing…" then disappears**
+
 Check server logs:
+
 ```bash
 docker logs mnemosyne-rag-server --tail 80
 ```
+
 Most common cause is Ollama not responding. Verify:
+
 ```bash
 docker logs mnemosyne-ollama --tail 30
 ```
 
 **OpenRouter returns 429**
+
 Free tier has rate limits. Wait 30–60 seconds and retry, or switch to a less busy free model via the System Status tab.
 
 **Container name conflicts on startup**
+
 If you previously ran the stack with old `avabas-*` container names, remove them first:
+
 ```bash
 docker rm -f avabas-ollama avabas-chromadb avabas-redis avabas-rag-server avabas-rag-ui 2>/dev/null
 docker compose up -d
@@ -524,11 +565,111 @@ docker compose up -d
 
 ## Docker Container Reference
 
-| Container | Image | Purpose |
-|-----------|-------|---------|
-| `mnemosyne-ollama` | `ollama/ollama:0.3.12` | Embedding model runtime |
-| `mnemosyne-ollama-init` | `curlimages/curl` | Pulls models on first boot, then exits |
-| `mnemosyne-chromadb` | `chromadb/chroma:latest` | Vector database |
-| `mnemosyne-redis` | `redis:7-alpine` | Cache and job queue |
-| `mnemosyne-rag-server` | Built from `rag-server/` | REST API |
-| `mnemosyne-rag-ui` | Built from `rag-ui/` | React Admin UI |
+| Container | Image | Ports | Purpose |
+|-----------|-------|-------|---------|
+| `mnemosyne-ollama` | `ollama/ollama:0.3.12` | `127.0.0.1:11435:11434` | Embedding + optional local LLM runtime |
+| `mnemosyne-ollama-init` | `curlimages/curl` | *(one-shot)* | Pulls `nomic-embed-text` on first boot, then exits |
+| `mnemosyne-chromadb` | `chromadb/chroma:latest` | `127.0.0.1:8001:8000` | Vector database |
+| `mnemosyne-redis` | `redis:7-alpine` | `127.0.0.1:6380:6379` | Cache + job queue |
+| `mnemosyne-rag-server` | Built from `rag-server/` | `3001:3001` | REST API |
+| `mnemosyne-rag-ui` | Built from `rag-ui/` | `3002:80` | React Admin UI |
+
+---
+
+## OpenRouter
+
+[OpenRouter](https://openrouter.ai) is the cloud LLM provider used by Mnemosyne for response generation. It offers a free tier with no credits required for qualifying models.
+
+- **Sign up:** https://openrouter.ai
+- **API keys:** https://openrouter.ai/keys
+- **Free models available:** `meta-llama/llama-3.1-8b-instruct:free`, `stepfun/step-3.5-flash:free`, and more
+- **Paid models:** Add credits for access to premium models (GPT-4o, Claude, etc.)
+- **No credits needed for free tier** — get started immediately with a free account
+
+Configuration:
+
+```env
+OPENROUTER_API_KEY=sk-or-v1-yourkeyhere        # Required (or leave empty to use local Ollama only)
+OPENROUTER_MODEL=stepfun/step-3.5-flash:free   # Default model
+```
+
+---
+
+## Ollama
+
+[Ollama](https://ollama.ai/) is used locally for two purposes:
+
+1. **Embeddings** — `nomic-embed-text` (~270 MB) runs persistently and powers all semantic search
+2. **Optional local LLM** — Run models like `llama3.2`, `mistral`, or `qwen2.5` entirely on your hardware
+
+### Running in Docker
+
+Mnemosyne ships with Ollama pinned to `ollama/ollama:0.3.12` to avoid a known CUDA layer bug on Windows. The container:
+
+- Runs `nomic-embed-text` automatically on first boot
+- Exposes port `11434` on the Docker network (not host)
+- Keeps models in the `ollama_data` Docker volume
+
+### Running Locally (Alternative)
+
+If you prefer to run Ollama on your host instead of Docker:
+
+```env
+# In .env — point to your local Ollama instance
+OLLAMA_HOST=http://host.docker.internal:11434
+```
+
+> **Note:** `host.docker.internal` resolves to the host machine from inside Docker containers.
+
+### Available Local LLM Models
+
+Pull a model directly into the running Ollama container:
+
+```bash
+docker exec -it mnemosyne-ollama ollama pull llama3.2
+docker exec -it mnemosyne-ollama ollama pull mistral
+docker exec -it mnemosyne-ollama ollama pull qwen2.5
+
+# List installed models
+docker exec mnemosyne-ollama ollama list
+```
+
+### Switching to Local-Only Mode
+
+Set these in `.env` to use Ollama for both embeddings and generation (OpenRouter not required):
+
+```env
+LLM_ENGINE=local
+LOCAL_LLM_MODEL=llama3.2
+# Omit OPENROUTER_API_KEY
+```
+
+## License
+
+Mnemosyne is released under the **MIT License**.
+
+```
+MIT License
+
+Copyright (c) 2026 Mnemosyne Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---

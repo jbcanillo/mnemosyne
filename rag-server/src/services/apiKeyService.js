@@ -165,8 +165,8 @@ class ApiKeyService {
   validateKey(providedKey) {
     for (const [id, keyObj] of this._keys) {
       if (keyObj.active && this._timingSafeCompare(providedKey, keyObj.key)) {
-        // Update last used timestamp
         keyObj.lastUsed = new Date().toISOString();
+        keyObj.queryCount = (keyObj.queryCount || 0) + 1;
         this._saveKeys().catch(err => logger.error('[ApiKeyService] Failed to update lastUsed:', err.message));
         return keyObj;
       }
@@ -227,6 +227,27 @@ class ApiKeyService {
    */
   hasKeys() {
     return Array.from(this._keys.values()).some(k => k.active);
+  }
+
+  /**
+   * Get analytics summary for all API keys
+   */
+  getAnalytics() {
+    const keys = Array.from(this._keys.values()).map(k => ({
+      id: k.id,
+      name: k.name,
+      active: k.active,
+      created: k.created,
+      lastUsed: k.lastUsed,
+      queryCount: k.queryCount || 0
+    }));
+    const totalQueries = keys.reduce((sum, k) => sum + k.queryCount, 0);
+    return {
+      keys,
+      totalQueries,
+      totalKeys: keys.length,
+      activeKeys: keys.filter(k => k.active).length
+    };
   }
 
   /**

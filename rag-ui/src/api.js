@@ -142,6 +142,7 @@ export const ragApi = {
   getAnalyticsTags:   () => api.get('/analytics/tags'),
   getAnalyticsSessions: () => api.get('/analytics/sessions'),
   getAnalyticsUsage:  () => api.get('/analytics/usage'),
+  getAnalyticsApiKeys: () => api.get('/analytics/api-keys'),
 };
 
 export default ragApi;

@@ -200,6 +200,15 @@ services:
       - rag-net
 
 volumes:
+  # ── Persistent data volumes ─────────────────────────────────────────
+  # WARNING: Do NOT run 'docker compose down -v' or Docker Desktop
+  # "Purge/Clean" — these DELETE these volumes permanently, causing
+  # total loss of ChromaDB embeddings, Redis config/queues, and docs.
+  #
+  # Safe rebuild:  docker compose up --build --force-recreate rag-server
+  # Forced backup: bash scripts/backup-before-rebuild.sh
+  # Backups:      ./scripts/backup-chromadb.sh
+  #               backups/pre-rebuild/ (via backup-before-rebuild.sh)
   ollama_data:
   chromadb_data:
   redis_data:
