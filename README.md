@@ -27,52 +27,50 @@ A self-hosted, containerized Retrieval-Augmented Generation (RAG) system with fu
 
 ## Architecture
 
-```
-═══════════════════════════════════════════════════════════════════════
-                     Docker Network: mnemosyne-rag-network
-═══════════════════════════════════════════════════════════════════════
-
- ┌─────────────────────────────────────────────────────────────────┐
- │                         Infrastructure Layer                    │
- │                                                                 │
- │   ┌──────────────────┐    ┌────────────────────────────────┐   │
- │   │  ChromaDB :8001  │    │  Redis :6379   (cache + queue) │   │
- │   │  (vector store)  │    │                                │   │
- │   └──────────────────┘    └────────────────────────────────┘   │
- │          ▲                          ▲                            │
- │          │                          │                            │
- │   ┌──────────────────────────────────────────────┐             │
- │   │           Ollama :11434 (Docker)             │             │
- │   │   Embeddings : nomic-embed-text (~270 MB)    │             │
- │   │   Optional LLM : llama3.2 / mistral / qwen  │             │
- │   └──────────────────────────────────────────────┘             │
- │                          ▲                                       │
- ═══════════════════════════════════════════════════════════════════
- │                          │   internal service communications    │
- │                          ▼                                       │
- │   ┌──────────────────────────────────────────────────────────┐  │
- │   │              RAG Server :3001 (Node.js + Express)        │  │
- │   │   REST API · Auth · Rate Limiting · Cache · Guardrails  │  │
- │   └──────────────────────────────────────────────────────────┘  │
- │                          ▲                                       │
- │                          │   HTTP  ·  X-API-Key / X-Session-Token │
- └──────────────────────────┼───────────────────────────────────────┘
-                            │
-          ┌─────────────────┴─────────────────┐
-          │                                    │
-   ┌──────▼──────┐                    ┌────────▼─────────┐
-   │  Viber Bot  │                    │  React Admin UI  │
-   │  Chatbot    │                    │          :3002   │
-   │  Controller │                    │  (via Nginx :80) │
-   └─────────────┘                    └──────────────────┘
-   (3rd-party)                           (auth-managed)
-
-   External LLM Providers (pluggable at runtime):
-   ┌─────────────────────────────────────────────────────────────┐
-   │  OpenRouter API  →  meta-llama/llama-3.1-8b-instruct:free  │
-   │                     stepfun/step-3.5-flash:free             │
-   │                     (any OpenRouter model)                  │
-   └─────────────────────────────────────────────────────────────┘
+```mermaid
+---
+config:
+  layout: elk
+---
+graph TB
+    subgraph infraLayer["Infrastructure Layer"]
+        chromaDB["ChromaDB :8001<br/>(vector store)"]
+        redis["Redis :6379<br/>(cache + queue)"]
+        ollama["Ollama :11434<br/>Embeddings: nomic-embed-text<br/>Optional LLM: llama3.2/mistral/qwen"]
+    end
+    
+    subgraph appLayer["Application Layer"]
+        ragServer["RAG Server :3001<br/>(Node.js + Express)<br/>REST API · Auth · Rate Limiting"]
+    end
+    
+    subgraph clientLayer["Client Layer"]
+        viberBot["Viber Bot Chatbot<br/>Controller<br/>(3rd-party)"]
+        adminUI["React Admin UI :3002<br/>(via Nginx :80)<br/>auth-managed"]
+    end
+    
+    subgraph externalLayer["External LLM Providers"]
+        openrouter["OpenRouter API<br/>llama-3.1-8b-instruct:free<br/>step-3.5-flash:free"]
+    end
+    
+    chromaDB <-->|vector queries| ragServer
+    redis <-->|cache/queue| ragServer
+    ollama <-->|embeddings| ragServer
+    ollama <-->|embeddings| chromaDB
+    
+    ragServer <-->|HTTP<br/>X-API-Key/X-Session-Token| viberBot
+    ragServer <-->|HTTP<br/>X-API-Key/X-Session-Token| adminUI
+    
+    ragServer -->|API calls| openrouter
+    
+    classDef infra stroke:#818cf8,fill:#eef2ff
+    classDef app stroke:#2dd4bf,fill:#f0fdfa
+    classDef client stroke:#facc15,fill:#fefce8
+    classDef external stroke:#f87171,fill:#fef2f2
+    
+    class chromaDB,redis,ollama infra
+    class ragServer app
+    class viberBot,adminUI client
+    class openrouter external
 ```
 
 ### Component Stack
