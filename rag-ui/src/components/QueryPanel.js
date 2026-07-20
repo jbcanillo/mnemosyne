@@ -439,6 +439,7 @@ export default function QueryPanel({
     try {
       if (asyncMode) {
         const response = await ragApi.queryAsync(q, {
+          sessionId: currentSessionId,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
         });
 
@@ -479,6 +480,7 @@ export default function QueryPanel({
         }
       } else {
         const result = await ragApi.query(q, {
+          sessionId: currentSessionId,
           includeChunks: true,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
         });

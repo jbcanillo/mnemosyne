@@ -208,7 +208,7 @@ class LLMService {
   }
 
   // ── Generation ────────────────────────────────────────────────────────
-  async generateResponse(query, context) {
+  async generateResponse(query, context, sessionHistory = null) {
     const engine = getLlmEngine();
     const cfgObj = cfg().load();
     let systemPrompt = cfgObj.systemPrompt ||
@@ -230,8 +230,22 @@ RULES:
 RULES:`);
     }
 
+    function buildConversationHistory() {
+      if (!sessionHistory || !Array.isArray(sessionHistory) || sessionHistory.length === 0) return '';
+      return sessionHistory
+        .slice(-20)
+        .map(m => {
+          const role = m.type === 'assistant' ? 'Assistant' : 'User';
+          const text = (m.text || '').substring(0, 2000);
+          return `${role}: ${text}`;
+        })
+        .join('\n\n');
+    }
+
+    const conversationHistory = buildConversationHistory();
+
     if (engine === 'local') {
-      return this._generateLocal(query, context, systemPrompt);
+      return this._generateLocal(query, context, systemPrompt, conversationHistory);
     }
 
     // OpenRouter path
@@ -250,9 +264,14 @@ RULES:`);
 `Context documents:
 ${contextText}
 
+${conversationHistory ? `---
+
+Recent Conversation:
+${conversationHistory}
+
 ---
 
-Question: ${query}
+` : ''}Question: ${query}
 
 Answer based ONLY on the context above:`;
 
@@ -300,7 +319,7 @@ Answer based ONLY on the context above:`;
   }
 
   // ── Local Ollama LLM generation ──────────────────────────────────────
-  async _generateLocal(query, context, systemPrompt) {
+  async _generateLocal(query, context, systemPrompt, conversationHistory = '') {
     const cfgObj = cfg().load();
     const localModel = cfgObj.localLlmModel || 'llama3.2';
     const maxTokens = cfg().get('maxTokens') || 500;
@@ -313,9 +332,14 @@ Answer based ONLY on the context above:`;
 `Context documents:
 ${contextText}
 
+${conversationHistory ? `---
+
+Recent Conversation:
+${conversationHistory}
+
 ---
 
-Question: ${query}
+` : ''}Question: ${query}
 
 Answer based ONLY on the context above:`;
 

@@ -2,7 +2,14 @@ const Redis = require('ioredis');
 const { v4: uuid } = require('uuid');
 const { logger } = require('../utils/logger');
 
-const SESSION_TTL = 30 * 24 * 60 * 60; // 30 days in seconds
+function getTtl() {
+  try {
+    const cfg = require('./configService').load();
+    return cfg.conversationMemoryTtl || 30 * 24 * 60 * 60;
+  } catch {
+    return 30 * 24 * 60 * 60;
+  }
+}
 
 class SessionService {
   constructor() {
@@ -56,13 +63,13 @@ class SessionService {
       // Store session metadata
       await this.redis.setex(
         `session:${sessionId}`,
-        SESSION_TTL,
+        getTtl(),
         JSON.stringify(session)
       );
 
       // Add to user's session list
       await this.redis.lpush(`sessions:${userId}`, sessionId);
-      await this.redis.expire(`sessions:${userId}`, SESSION_TTL);
+      await this.redis.expire(`sessions:${userId}`, getTtl());
 
       logger.info(`[Session] Created: ${sessionId} for user ${userId}`);
       return session;
@@ -139,7 +146,7 @@ class SessionService {
 
       // Add to message list
       await this.redis.rpush(`session:${sessionId}:messages`, JSON.stringify(msg));
-      await this.redis.expire(`session:${sessionId}:messages`, SESSION_TTL);
+      await this.redis.expire(`session:${sessionId}:messages`, getTtl());
 
        // Update session metadata
        const session = await this.redis.get(`session:${sessionId}`);
@@ -148,7 +155,7 @@ class SessionService {
          parsed.messageCount = (parsed.messageCount || 0) + 1;
          parsed.lastMessageAt = msg.ts;
          parsed.modified = new Date().toISOString();
-         await this.redis.setex(`session:${sessionId}`, SESSION_TTL, JSON.stringify(parsed));
+         await this.redis.setex(`session:${sessionId}`, getTtl(), JSON.stringify(parsed));
        }
 
       return msg;
@@ -185,7 +192,7 @@ class SessionService {
         const session = JSON.parse(data);
         session.title = title;
         session.modified = new Date().toISOString();
-        await this.redis.setex(`session:${sessionId}`, SESSION_TTL, JSON.stringify(session));
+        await this.redis.setex(`session:${sessionId}`, getTtl(), JSON.stringify(session));
       }
       return true;
     } catch (err) {
@@ -206,7 +213,7 @@ class SessionService {
         const session = JSON.parse(data);
         session.tags = tags || [];
         session.modified = new Date().toISOString();
-        await this.redis.setex(`session:${sessionId}`, SESSION_TTL, JSON.stringify(session));
+        await this.redis.setex(`session:${sessionId}`, getTtl(), JSON.stringify(session));
         logger.info(`[Session] Updated tags for session ${sessionId}: [${tags.join(', ')}]`);
       }
       return true;
@@ -249,7 +256,7 @@ class SessionService {
         const session = JSON.parse(data);
         session.messageCount = 0;
         session.modified = new Date().toISOString();
-        await this.redis.setex(`session:${sessionId}`, SESSION_TTL, JSON.stringify(session));
+        await this.redis.setex(`session:${sessionId}`, getTtl(), JSON.stringify(session));
       }
 
       return true;
