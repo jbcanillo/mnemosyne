@@ -18,6 +18,7 @@ const DEFAULTS = {
   chunkSize:           parseInt(process.env.CHUNK_SIZE || '500'),
   chunkOverlap:        parseInt(process.env.CHUNK_OVERLAP || '50'),
   cacheTtl:            parseInt(process.env.CACHE_TTL || '3600'),
+  conversationMemoryTtl: parseInt(process.env.CONVERSATION_MEMORY_TTL || '1800'),
   maxTokens:           parseInt(process.env.MAX_TOKEN || '8000'),
   rateLimitMax:        parseInt(process.env.RATE_LIMIT_MAX || '120'),
   queryRateLimit:     parseInt(process.env.QUERY_RATE_LIMIT || '150'),

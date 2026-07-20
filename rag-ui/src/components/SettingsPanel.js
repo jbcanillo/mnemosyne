@@ -53,6 +53,7 @@ export default function SettingsPanel({ onRefresh }) {
   const [minScore, setMinScore] = useState("");
   const [topK, setTopK] = useState("");
   const [cacheTtl, setCacheTtl] = useState("");
+  const [memoryTtl, setMemoryTtl] = useState("");
   const [chunkSize, setChunkSize] = useState("");
   const [chunkOvlp, setChunkOvlp] = useState("");
   const [ocrEnabled, setOcrEnabled] = useState(true);
@@ -102,6 +103,7 @@ RULES:
       setMinScore(String(s.minRelevanceScore ?? "0.15"));
       setTopK(String(s.topK ?? "5"));
       setCacheTtl(String(s.cacheTtl ?? "3600"));
+      setMemoryTtl(String(s.conversationMemoryTtl ?? "1800"));
       setChunkSize(String(s.chunkSize ?? "500"));
       setChunkOvlp(String(s.chunkOverlap ?? "50"));
       setOcrEnabled(s.ocrEnabled !== false); // Default to true
@@ -171,6 +173,7 @@ RULES:
         minRelevanceScore: parseFloat(minScore),
         topK: parseInt(topK),
         cacheTtl: parseInt(cacheTtl),
+        conversationMemoryTtl: parseInt(memoryTtl),
         chunkSize: parseInt(chunkSize),
         chunkOverlap: parseInt(chunkOvlp),
         ocrEnabled: ocrEnabled,
@@ -793,6 +796,17 @@ RULES:
                   onChange={(e) => setCacheTtl(e.target.value)}
                 />
                 <div className="form-hint">Cache duration. Default: 3600</div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Conversation Memory TTL (seconds)</label>
+                <input
+                  className="sp-input"
+                  type="number"
+                  min="0"
+                  value={memoryTtl}
+                  onChange={(e) => setMemoryTtl(e.target.value)}
+                />
+                <div className="form-hint">How long AI retains conversation context per session. Default: 1800</div>
               </div>
               <div className="form-group">
                 <label className="form-label">Chunk Size (words)</label>

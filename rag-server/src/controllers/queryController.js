@@ -2,6 +2,7 @@ const queueService  = require('../services/queueService');
 const cacheService  = require('../services/cacheService');
 const vectorStore   = require('../services/vectorStore');
 const llmService    = require('../services/llmService');
+const sessionService = require('../services/sessionService');
 const { logger }    = require('../utils/logger');
 const configService = require('../services/configService');
 
@@ -14,13 +15,21 @@ const TOP_K = parseInt(process.env.TOP_K || '5');
 // Initialize async query processor
 queueService.processQueries(async (job) => {
   const { query, options = {} } = job.data;
-  return await processRagQuery(query, options, job);
+  let sessionHistory = [];
+  if (options.sessionId) {
+    try {
+      sessionHistory = await sessionService.getMessages(options.sessionId, 0, -1);
+    } catch (err) {
+      logger.warn('[Query] Failed to load session history:', err.message);
+    }
+  }
+  return await processRagQuery(query, options, job, sessionHistory);
 });
 
 /**
  * Core RAG pipeline
  */
-async function processRagQuery(query, options = {}, job = null) {
+async function processRagQuery(query, options = {}, job = null, sessionHistory = null) {
   if (job) await job.progress(10);
 
   // 1. Embed the query
@@ -81,7 +90,7 @@ async function processRagQuery(query, options = {}, job = null) {
   // 5. Generate response (via configured LLM engine)
   let answer;
   try {
-    answer = await llmService.generateResponse(query, relevantChunks);
+    answer = await llmService.generateResponse(query, relevantChunks, sessionHistory);
   } catch (err) {
     err.step = 'llm_generation';
     throw err;
@@ -165,7 +174,16 @@ exports.query = async (req, res) => {
       return res.status(202).json({ jobId: job.id, status: 'queued' });
     }
 
-    const result = await processRagQuery(trimmedQuery, options);
+    let sessionHistory = [];
+    if (options.sessionId) {
+      try {
+        sessionHistory = await sessionService.getMessages(options.sessionId, 0, -1);
+      } catch (err) {
+        logger.warn('[Query] Failed to load session history:', err.message);
+      }
+    }
+
+    const result = await processRagQuery(trimmedQuery, options, null, sessionHistory);
     await cacheService.set(cacheKey, result);
     logger.info(`[API] Query completed - Results: ${result.relevantChunks} chunks, Sources: ${result.sources?.length || 0}`);
     if (configService.get('enableEnhancedLogging')) {
