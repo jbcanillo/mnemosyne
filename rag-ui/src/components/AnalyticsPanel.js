@@ -318,14 +318,13 @@ export default function AnalyticsPanel() {
       const msgsByDay = sessions.messagesByDay || [];
       setMessagesByDay(msgsByDay);
 
-      // Compute tag query counts from sessions (only sessions with exactly 1 tag)
+      // Compute tag query counts from sessions
       const tagCounts = {};
       sessionsList.forEach(s => {
         const tagsArr = s.tags || [];
-        if (tagsArr.length === 1) {
-          const tag = tagsArr[0];
+        tagsArr.forEach(tag => {
           tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-        }
+        });
       });
       const tagQueries = Object.entries(tagCounts)
         .map(([name, queries]) => ({ name, queries }))
