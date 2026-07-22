@@ -263,13 +263,7 @@ RULES:
       if (type === "openrouter") {
         await ragApi.deleteModel(modelId);
       } else {
-        // Ollama models can't be deleted via API — user must do in Ollama container
-        toast.error(
-          "Deleting Ollama models not supported via UI. Use: ollama rm " +
-            modelId,
-        );
-        setDeletingModel(null);
-        return;
+        await ragApi.deleteOllamaModel(modelId);
       }
       toast.success("Model deleted");
       await loadModels();
@@ -798,7 +792,7 @@ RULES:
                 <div className="form-hint">Cache duration. Default: 3600</div>
               </div>
               <div className="form-group">
-                <label className="form-label">Conversation Memory TTL (seconds)</label>
+                <label className="form-label">Context Memory TTL (seconds)</label>
                 <input
                   className="sp-input"
                   type="number"
@@ -806,7 +800,7 @@ RULES:
                   value={memoryTtl}
                   onChange={(e) => setMemoryTtl(e.target.value)}
                 />
-                <div className="form-hint">How long AI retains conversation context per session. Default: 1800</div>
+                <div className="form-hint">Conversation retention per session. Default: 1800</div>
               </div>
               <div className="form-group">
                 <label className="form-label">Chunk Size (words)</label>

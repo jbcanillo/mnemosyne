@@ -220,33 +220,6 @@ router.delete('/usage', eitherAuth, (req, res) => {
   res.json({ message: 'Token usage stats reset.' });
 });
 
-// ── Live Log Viewer (Session only) ───────────────────────────────────────
-router.get('/logs', eitherAuth, async (req, res) => {
-  const fs = require('fs');
-  const logPath = '/var/log/rag/combined.log';
-  const count = Math.min(parseInt(req.query.lines) || 200, 1000);
-
-  try {
-    const data = await fs.promises.readFile(logPath, 'utf8');
-    const logs = data
-      .split('\n')
-      .filter(line => line.trim())
-      .slice(-count)
-      .map((line, index) => {
-        const match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\]:\s*(.*)$/);
-        return {
-          index,
-          timestamp: match ? match[1] : null,
-          level: match ? match[2].toLowerCase() : 'info',
-          message: match ? match[3] : line
-        };
-      });
-    return res.json({ logs, count: logs.length });
-  } catch (err) {
-    logger.warn(`[LogServer] Log read error: ${err.message}`);
-    return res.status(500).json({ error: 'Log read failed', details: err.message });
-  }
-});
 
 // ── Healthcheck (public) ──────────────────────────────────────────────
 router.get('/healthcheck', eitherAuth, statusLimiter, async (req, res) => {
