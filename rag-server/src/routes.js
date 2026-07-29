@@ -115,6 +115,7 @@ router.get('/documents/stats',               eitherAuth, documentController.stat
 router.get('/documents/tags',                eitherAuth, documentController.getTags);
 router.get('/documents/ingest-status/:jobId',eitherAuth, statusLimiter, documentController.ingestStatus);
 router.get('/documents/:id/download',        eitherAuth, documentController.download);
+router.get('/documents/:id/chunks',           eitherAuth, documentController.getChunks);
 router.delete('/documents/:id',              eitherAuth, documentController.remove);
 router.put('/documents/:id/tags',            eitherAuth, documentController.updateTags);
 

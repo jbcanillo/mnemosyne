@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
-import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, Loader2, Inbox, Tag, X, Edit2, RefreshCw, Download } from 'lucide-react';
+import { Upload, FileText, FileSpreadsheet, File, Trash2, CheckCircle, XCircle, Loader2, Inbox, Tag, X, Edit2, RefreshCw, Download, Layers } from 'lucide-react';
 import { ragApi } from '../api';
 
 const SUPPORTED = ['.pdf', '.xlsx', '.xls', '.csv', '.md', '.txt', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif'];
@@ -20,6 +20,11 @@ export default function DocumentsPanel({ onRefresh }) {
   const [searchFilename, setSearchFilename] = useState('');
   const [sortField, setSortField] = useState('uploadedAt');
   const [sortDirection, setSortDirection] = useState('desc');
+  const [chunksModalOpen, setChunksModalOpen] = useState(false);
+  const [chunksDocId, setChunksDocId] = useState(null);
+  const [chunksDocFilename, setChunksDocFilename] = useState('');
+  const [chunksList, setChunksList] = useState([]);
+  const [chunksLoading, setChunksLoading] = useState(false);
 
   useEffect(() => { fetchDocuments(); fetchTags(); }, []);
 
@@ -339,6 +344,22 @@ export default function DocumentsPanel({ onRefresh }) {
     }
   }
 
+  async function handleViewChunks(doc) {
+    try {
+      setChunksDocId(doc.id);
+      setChunksDocFilename(doc.filename);
+      setChunksLoading(true);
+      setChunksModalOpen(true);
+      const data = await ragApi.getDocumentChunks(doc.id);
+      setChunksList(data.chunks || []);
+    } catch (err) {
+      toast.error('Failed to load chunks: ' + err.message);
+      setChunksModalOpen(false);
+    } finally {
+      setChunksLoading(false);
+    }
+  }
+
   const fileIcon = t => {
     const icons = {
       pdf: <FileText size={18} />,
@@ -533,6 +554,11 @@ export default function DocumentsPanel({ onRefresh }) {
                           title="Download file">
                           <Download size={16} />
                         </button>
+                        <button className="btn btn-ghost btn-sm doc-chunks-btn"
+                          onClick={() => handleViewChunks(doc)}
+                          title="View chunks">
+                          <Layers size={16} />
+                        </button>
                         <button className="btn btn-danger btn-sm doc-delete-btn"
                           onClick={() => handleDelete(doc)}
                           title="Remove document">
@@ -547,6 +573,47 @@ export default function DocumentsPanel({ onRefresh }) {
           )
         }
       </div>
+
+      {/* ── Chunks Viewer Modal ── */}
+      {chunksModalOpen && (
+        <div className="modal-overlay" onClick={() => setChunksModalOpen(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">
+                <Layers size={18} />
+                <span>Chunks — {chunksDocFilename}</span>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setChunksModalOpen(false)} title="Close">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-body">
+              {chunksLoading ? (
+                <div className="empty-state">
+                  <Loader2 size={24} className="spin" />
+                  <div className="empty-label">Loading chunks…</div>
+                </div>
+              ) : chunksList.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-label">No chunks found for this document.</div>
+                </div>
+              ) : (
+                <div className="chunks-list">
+                  {chunksList.map((chunk, i) => (
+                    <div key={chunk.id || i} className="chunk-item">
+                      <div className="chunk-index">#{i + 1}</div>
+                      <div className="chunk-text">{chunk.text}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <span className="chunk-count">{chunksList.length} chunk{chunksList.length !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

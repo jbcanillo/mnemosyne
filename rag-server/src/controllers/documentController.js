@@ -310,3 +310,27 @@ exports.updateTags = async (req, res) => {
     res.status(500).json({ error: 'Failed to update tags' });
   }
 };
+
+/**
+ * GET /api/documents/:id/chunks
+ * Retrieve all chunks for a specific document
+ */
+exports.getChunks = async (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: 'Document ID required' });
+
+  try {
+    const docs = await vectorStore.listDocuments();
+    const doc = docs.find(d => d.id === id);
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const chunks = await vectorStore.getChunksByDocumentId(id);
+
+    res.json({ chunks, total: chunks.length });
+  } catch (err) {
+    logger.error('Get chunks error:', err);
+    res.status(500).json({ error: 'Failed to retrieve chunks' });
+  }
+};

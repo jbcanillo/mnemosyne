@@ -792,7 +792,7 @@ RULES:
                 <div className="form-hint">Cache duration. Default: 3600</div>
               </div>
               <div className="form-group">
-                <label className="form-label">Context Memory TTL (seconds)</label>
+                <label className="form-label">Context Memory (seconds)</label>
                 <input
                   className="sp-input"
                   type="number"
@@ -800,7 +800,7 @@ RULES:
                   value={memoryTtl}
                   onChange={(e) => setMemoryTtl(e.target.value)}
                 />
-                <div className="form-hint">Conversation retention per session. Default: 1800</div>
+                <div className="form-hint">Conversation retention. Default: 1800</div>
               </div>
               <div className="form-group">
                 <label className="form-label">Chunk Size (words)</label>

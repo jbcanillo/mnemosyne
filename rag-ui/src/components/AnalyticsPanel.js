@@ -619,7 +619,7 @@ export default function AnalyticsPanel() {
         {/* 4. Query by API Key — horizontal bar chart */}
         <div className="chart-card wide" style={{ gridColumn: 'span 2' }}>
           <div className="card-header">
-            <h3><KeyRound size={15} /> Queries by API Key</h3>
+            <h3><KeyRound size={15} /> Queries by API Keys</h3>
           </div>
           <div className="chart-body">
             {useApiKeyData.length > 0 ? (
