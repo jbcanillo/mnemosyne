@@ -242,6 +242,25 @@ class VectorStore {
 
     logger.info(`[VectorStore] Updated tags for document ${documentId}: ${tagsString}`);
   }
+
+  /**
+   * Retrieve all chunks for a specific document.
+   * @param {string} documentId
+   * @returns {Array<{id, text, metadata}>}
+   */
+  async getChunksByDocumentId(documentId) {
+    await this.ensureInit();
+    const result = await this.collection.get({
+      where: { documentId },
+      include: ['documents', 'metadatas']
+    });
+
+    return (result.ids || []).map((id, i) => ({
+      id,
+      text: result.documents?.[i] || '',
+      metadata: result.metadatas?.[i] || {}
+    }));
+  }
 }
 
 module.exports = new VectorStore();

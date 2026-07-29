@@ -87,6 +87,7 @@ export const ragApi = {
   getIngestStatus:  (jobId) => api.get(`/documents/ingest-status/${jobId}`),
   deleteDocument:   (id) => api.delete(`/documents/${id}`),
   getDocumentStats: () => api.get('/documents/stats'),
+  getDocumentChunks: (id) => api.get(`/documents/${id}/chunks`),
 
   // Admin / Model info
   getInfo:          () => api.get('/info'),

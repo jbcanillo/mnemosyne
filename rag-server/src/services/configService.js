@@ -82,6 +82,11 @@ class ConfigService {
         logger.info('[Config] OpenRouter key loaded from environment variable');
       }
 
+      if (process.env.MNEMOSYNE_VERSION) {
+        this._config.version = process.env.MNEMOSYNE_VERSION;
+        logger.info('[Config] Version loaded from environment variable');
+      }
+
       this.save(); // persist so future boots don't need the env var
     } catch (err) {
       logger.error(`[Config] Failed to load: ${err.message}`);
