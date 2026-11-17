@@ -158,8 +158,20 @@ exports.query = async (req, res) => {
     const user = req.user?.id || 'api-key';
     logger.info(`[API] POST /query - User: ${user}, Mode: ${mode}, Query: "${trimmedQuery.substring(0, 60)}", Tags: ${tags}`);
 
+    // Conversation-aware answers depend on history, which isn't part of the
+    // cache key, so only history-free queries use the cache.
+    let sessionHistory = [];
+    if (options.sessionId) {
+      try {
+        sessionHistory = await sessionService.getMessages(options.sessionId, 0, -1);
+      } catch (err) {
+        logger.warn('[Query] Failed to load session history:', err.message);
+      }
+    }
+    const useCache = sessionHistory.length === 0;
+
     const cacheKey = cacheService.generateKey(trimmedQuery, options);
-    const cached   = await cacheService.get(cacheKey);
+    const cached   = useCache ? await cacheService.get(cacheKey) : null;
     if (cached) {
       logger.info(`[Query] Cache hit: "${trimmedQuery.substring(0, 50)}"`);
       if (configService.get('enableEnhancedLogging')) {
@@ -174,17 +186,8 @@ exports.query = async (req, res) => {
       return res.status(202).json({ jobId: job.id, status: 'queued' });
     }
 
-    let sessionHistory = [];
-    if (options.sessionId) {
-      try {
-        sessionHistory = await sessionService.getMessages(options.sessionId, 0, -1);
-      } catch (err) {
-        logger.warn('[Query] Failed to load session history:', err.message);
-      }
-    }
-
     const result = await processRagQuery(trimmedQuery, options, null, sessionHistory);
-    await cacheService.set(cacheKey, result);
+    if (useCache) await cacheService.set(cacheKey, result);
     logger.info(`[API] Query completed - Results: ${result.relevantChunks} chunks, Sources: ${result.sources?.length || 0}`);
     if (configService.get('enableEnhancedLogging')) {
       logger.info(`[Audit] Response generated - Length: ${result.answer?.length || 0} chars, Chunks: ${result.relevantChunks}`);
@@ -242,7 +245,8 @@ exports.getJobStatus = async (req, res) => {
   try {
     const status = await queueService.getJobStatus(jobId);
     if (!status) return res.status(404).json({ error: 'Job not found' });
-    if (status.state === 'completed' && status.result) {
+    // Skip session-bound jobs: their answer may have used history the key ignores
+    if (status.state === 'completed' && status.result && !status.data?.options?.sessionId) {
       const cacheKey = cacheService.generateKey(status.data?.query || '', status.data?.options || {});
       await cacheService.set(cacheKey, status.result);
     }

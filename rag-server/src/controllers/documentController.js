@@ -5,6 +5,7 @@ const documentParser = require('../services/documentParser');
 const vectorStore    = require('../services/vectorStore');
 const llmService     = require('../services/llmService');
 const queueService   = require('../services/queueService');
+const cacheService   = require('../services/cacheService');
 const { logger }     = require('../utils/logger');
 const configService  = require('../services/configService');
 
@@ -73,6 +74,8 @@ queueService.processIngests(async (job) => {
     logger.info('[Ingest] Storing in vector database...');
     const vectorChunks = chunks.map((c, i) => ({ ...c, embedding: allEmbeddings[i] }));
     await vectorStore.addChunks(vectorChunks);
+    // Answers cached from an earlier version of this file are now stale
+    await cacheService.invalidateBySource(filename);
     await job.progress(95);
 
     // 5. Cleanup temp file
@@ -202,6 +205,7 @@ exports.remove = async (req, res) => {
         logger.info(`Deleted file for document ${id}: ${filePath}`);
       }
       await vectorStore.deleteByDocumentId(id);
+      await cacheService.invalidateBySource(doc.filename);
       res.json({ message: `Document ${id} removed from knowledge base.` });
     } else {
       logger.warn(`Document ${id} not found in list after deletion attempt.`);
